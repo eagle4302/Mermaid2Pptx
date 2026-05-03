@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mermaid2Pptx all diagram sample</title>
+  <style>
+    html, body { margin: 0; font-family: Arial, sans-serif; background: #e5e7eb; }
+    body { display: grid; gap: 24px; padding: 24px; }
+    .slide {
+      width: 1280px;
+      height: 720px;
+      display: grid;
+      place-items: center;
+      background: #ffffff;
+      overflow: hidden;
+    }
+    .mermaid {
+      width: 1080px;
+      max-height: 620px;
+      display: grid;
+      place-items: center;
+    }
+    .compact { width: 980px; }
+  </style>
+</head>
+<body>
+  <section class="slide" data-diagram="flowchart">
+    <pre class="mermaid">
+flowchart LR
+  A([Start]) --> B{Decision}
+  B -- Yes --> C[Native PowerPoint shapes]
+  B -- No --> D[Warning report]
+  C --> E([Done])
+  D --> E
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="class">
+    <pre class="mermaid compact">
+classDiagram
+  class Animal {
+    +String name
+    +makeSound()
+  }
+  class Dog {
+    +bark()
+  }
+  Animal <|-- Dog
+  Dog : +fetch()
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="sequence">
+    <pre class="mermaid">
+sequenceDiagram
+  participant Alice
+  participant Bob
+  Alice->>Bob: Hello Bob
+  Bob-->>Alice: Hi Alice
+  loop Every minute
+    Alice->>Bob: Ping
+  end
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="er">
+    <pre class="mermaid compact">
+erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  PRODUCT ||--o{ LINE_ITEM : includes
+  CUSTOMER {
+    string name
+    string email
+  }
+  ORDER {
+    int id
+    date created
+  }
+  PRODUCT {
+    string sku
+    string name
+  }
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="state">
+    <pre class="mermaid compact">
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Processing : start
+  Processing --> Done
+  Done --> [*]
+  Processing --> Idle : retry
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="mindmap">
+    <pre class="mermaid compact">
+mindmap
+  root((Project))
+    Planning
+      Scope
+      Risks
+    Build
+      Parser
+      PowerPoint
+    QA
+      Screenshots
+      Tests
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="architecture">
+    <pre class="mermaid compact">
+architecture-beta
+  group api(cloud)[API]
+  service web(server)[Web] in api
+  service db(database)[Database] in api
+  service cache(disk)[Cache] in api
+  web:R --> L:db
+  web:B --> T:cache
+    </pre>
+  </section>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+    await mermaid.run({ querySelector: ".mermaid" });
+    window.__MERMAID_DONE__ = true;
+  </script>
+</body>
+</html>

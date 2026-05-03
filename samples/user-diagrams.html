@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>User Mermaid diagrams</title>
+  <style>
+    html, body { margin: 0; font-family: Arial, sans-serif; background: #e5e7eb; }
+    body { display: grid; gap: 24px; padding: 24px; }
+    .slide {
+      width: 1280px;
+      height: 720px;
+      display: grid;
+      place-items: center;
+      background: #ffffff;
+      overflow: hidden;
+    }
+    .mermaid {
+      width: 1080px;
+      height: 620px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .mermaid svg { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; }
+    .compact { width: 980px; }
+    .wide { width: 1160px; }
+    .tall { height: 660px; }
+  </style>
+</head>
+<body>
+  <section class="slide" data-diagram="flowchart">
+    <pre class="mermaid wide">
+flowchart TD
+    A[Christmas] -->|Get money| B(Go shopping)
+    B --> C{Let me think}
+    C -->|One| D[Laptop]
+    C -->|Two| E[iPhone]
+    C -->|Three| F[fa:fa-car Car]
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="class">
+    <pre class="mermaid compact">
+classDiagram
+    Animal &lt;|-- Duck
+    Animal &lt;|-- Fish
+    Animal &lt;|-- Zebra
+    Animal : +int age
+    Animal : +String gender
+    Animal: +isMammal()
+    Animal: +mate()
+    class Duck{
+      +String beakColor
+      +swim()
+      +quack()
+    }
+    class Fish{
+      -int sizeInFeet
+      -canEat()
+    }
+    class Zebra{
+      +bool is_wild
+      +run()
+    }
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="sequence">
+    <pre class="mermaid">
+sequenceDiagram
+    Alice-&gt;&gt;+John: Hello John, how are you?
+    Alice-&gt;&gt;+John: John, can you hear me?
+    John--&gt;&gt;-Alice: Hi Alice, I can hear you!
+    John--&gt;&gt;-Alice: I feel great!
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="er">
+    <pre class="mermaid compact tall">
+erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ ORDER_ITEM : contains
+    PRODUCT ||--o{ ORDER_ITEM : includes
+    CUSTOMER {
+        string id
+        string name
+        string email
+    }
+    ORDER {
+        string id
+        date orderDate
+        string status
+    }
+    PRODUCT {
+        string id
+        string name
+        float price
+    }
+    ORDER_ITEM {
+        int quantity
+        float price
+    }
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="state">
+    <pre class="mermaid compact">
+stateDiagram-v2
+    [*] --&gt; Still
+    Still --&gt; [*]
+    Still --&gt; Moving
+    Moving --&gt; Still
+    Moving --&gt; Crash
+    Crash --&gt; [*]
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="mindmap">
+    <pre class="mermaid compact tall">
+mindmap
+  root((mindmap))
+    Origins
+      Long history
+      ::icon(fa fa-book)
+      Popularisation
+        British popular psychology author Tony Buzan
+    Research
+      On effectiveness&lt;br/&gt;and features
+      On Automatic creation
+        Uses
+            Creative techniques
+            Strategic planning
+            Argument mapping
+    Tools
+      Pen and paper
+      Mermaid
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="architecture">
+    <pre class="mermaid compact">
+architecture-beta
+    group api(cloud)[API]
+
+    service db(database)[Database] in api
+    service disk1(disk)[Storage] in api
+    service disk2(disk)[Storage] in api
+    service server(server)[Server] in api
+
+    db:L -- R:server
+    disk1:T -- B:server
+    disk2:T -- B:db
+    </pre>
+  </section>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+    await mermaid.run({ querySelector: ".mermaid" });
+    window.__MERMAID_DONE__ = true;
+  </script>
+</body>
+</html>

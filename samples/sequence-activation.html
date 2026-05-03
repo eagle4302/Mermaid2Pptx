@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mermaid2Pptx sequence activation sample</title>
+  <style>
+    html, body { margin: 0; font-family: Arial, sans-serif; background: #e5e7eb; }
+    .slide {
+      width: 1280px;
+      height: 720px;
+      display: grid;
+      place-items: center;
+      background: #ffffff;
+      overflow: hidden;
+    }
+    .mermaid {
+      width: 1080px;
+      max-height: 620px;
+      display: grid;
+      place-items: center;
+    }
+  </style>
+</head>
+<body>
+  <section class="slide" data-diagram="sequence-activation">
+    <pre class="mermaid">
+sequenceDiagram
+    Alice->>+John: Hello John, how are you?
+    Alice->>+John: John, can you hear me?
+    John-->>-Alice: Hi Alice, I can hear you!
+    John-->>-Alice: I feel great!
+    </pre>
+  </section>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+    await mermaid.run({ querySelector: ".mermaid" });
+    window.__MERMAID_DONE__ = true;
+  </script>
+</body>
+</html>
