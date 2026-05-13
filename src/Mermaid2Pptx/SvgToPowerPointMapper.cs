@@ -79,6 +79,7 @@ public sealed class SvgToPowerPointMapper
             }
         }
 
+        ExpandTextContainersToFitText(slide, viewport);
         return slide;
     }
 
@@ -409,6 +410,141 @@ public sealed class SvgToPowerPointMapper
         // line arrowheads instead of adding separate marker shapes.
         slide.Shapes.Add(shape);
     }
+
+    private static void ExpandTextContainersToFitText(PptxSlideModel slide, SvgViewportMap viewport)
+    {
+        var paddingX = Math.Max(1, (long)Math.Round(Math.Abs(viewport.MapLengthX(4))));
+        var paddingY = Math.Max(1, (long)Math.Round(Math.Abs(viewport.MapLengthY(3))));
+
+        for (var textIndex = 0; textIndex < slide.Shapes.Count; textIndex++)
+        {
+            var textShape = slide.Shapes[textIndex];
+            if (textShape.Kind != PptxShapeKind.Text || string.IsNullOrWhiteSpace(textShape.Text))
+            {
+                continue;
+            }
+
+            if (!TryFindTextContainer(slide.Shapes, textIndex, textShape, out var containerIndex))
+            {
+                continue;
+            }
+
+            var container = slide.Shapes[containerIndex];
+            var required = Inflate(Bounds(textShape), paddingX, paddingY);
+            var current = Bounds(container);
+            if (Contains(current, required))
+            {
+                continue;
+            }
+
+            var expanded = Union(current, required);
+            container.X = expanded.Left;
+            container.Y = expanded.Top;
+            container.Cx = Math.Max(1, expanded.Right - expanded.Left);
+            container.Cy = Math.Max(1, expanded.Bottom - expanded.Top);
+        }
+    }
+
+    private static bool TryFindTextContainer(
+        IReadOnlyList<PptxShape> shapes,
+        int textIndex,
+        PptxShape textShape,
+        out int containerIndex)
+    {
+        containerIndex = -1;
+        var textBounds = Bounds(textShape);
+        var centerX = textBounds.Left + (textBounds.Right - textBounds.Left) / 2;
+        var centerY = textBounds.Top + (textBounds.Bottom - textBounds.Top) / 2;
+
+        for (var shapeIndex = textIndex - 1; shapeIndex >= 0; shapeIndex--)
+        {
+            var candidate = shapes[shapeIndex];
+            if (!CanContainText(candidate))
+            {
+                continue;
+            }
+
+            if (ContainsPoint(Bounds(candidate), centerX, centerY))
+            {
+                containerIndex = shapeIndex;
+                return true;
+            }
+        }
+
+        var bestArea = long.MaxValue;
+        for (var shapeIndex = 0; shapeIndex < shapes.Count; shapeIndex++)
+        {
+            if (shapeIndex == textIndex)
+            {
+                continue;
+            }
+
+            var candidate = shapes[shapeIndex];
+            if (!CanContainText(candidate))
+            {
+                continue;
+            }
+
+            var candidateBounds = Bounds(candidate);
+            if (!ContainsPoint(candidateBounds, centerX, centerY))
+            {
+                continue;
+            }
+
+            var area = Math.Max(1, candidate.Cx) * Math.Max(1, candidate.Cy);
+            if (area < bestArea)
+            {
+                bestArea = area;
+                containerIndex = shapeIndex;
+            }
+        }
+
+        return containerIndex >= 0;
+    }
+
+    private static bool CanContainText(PptxShape shape)
+    {
+        if (shape.Kind is PptxShapeKind.Text or PptxShapeKind.Line)
+        {
+            return false;
+        }
+
+        if (shape.Name.StartsWith("Marker", StringComparison.OrdinalIgnoreCase) ||
+            shape.Name.StartsWith("Mermaid Edge", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return shape.Kind == PptxShapeKind.Preset ||
+               shape.PathCommands.OfType<PptxClosePath>().Any();
+    }
+
+    private static ShapeBounds Bounds(PptxShape container) =>
+        new(container.X, container.Y, container.X + Math.Max(1, container.Cx), container.Y + Math.Max(1, container.Cy));
+
+    private static ShapeBounds Inflate(ShapeBounds bounds, long paddingX, long paddingY) =>
+        new(bounds.Left - paddingX, bounds.Top - paddingY, bounds.Right + paddingX, bounds.Bottom + paddingY);
+
+    private static ShapeBounds Union(ShapeBounds first, ShapeBounds second) =>
+        new(
+            Math.Min(first.Left, second.Left),
+            Math.Min(first.Top, second.Top),
+            Math.Max(first.Right, second.Right),
+            Math.Max(first.Bottom, second.Bottom));
+
+    private static bool Contains(ShapeBounds outer, ShapeBounds inner) =>
+        outer.Left <= inner.Left &&
+        outer.Top <= inner.Top &&
+        outer.Right >= inner.Right &&
+        outer.Bottom >= inner.Bottom;
+
+    private static bool ContainsPoint(ShapeBounds bounds, long x, long y) =>
+        x >= bounds.Left &&
+        x <= bounds.Right &&
+        y >= bounds.Top &&
+        y <= bounds.Bottom;
+
+    private readonly record struct ShapeBounds(long Left, long Top, long Right, long Bottom);
 
     private static IReadOnlyList<PptxShape> BuildMarkerShapes(
         PptxShape source,

@@ -35,6 +35,26 @@ pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
 ```
 
+You can also pass Mermaid source directly and still get a native-shape PPTX:
+
+```powershell
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid "graph TD; A-->B" --out out/inline-mermaid.pptx
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.pptx
+Get-Content diagram.mmd -Raw | dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-stdin --out out/diagram.pptx
+```
+
+For AI agents, the recommended exchange format is still `.pptx`, not raw
+DrawingML fragments. Generate a temporary native-shape diagram deck, or insert it
+directly into an existing deck:
+
+```powershell
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx
+```
+
+CLI source inputs are mutually exclusive: use exactly one of `--html`,
+`--mermaid`, `--mermaid-file`, or `--mermaid-stdin`, unless insert mode uses an
+existing native-shape source deck via `--source-pptx`.
+
 Seven-diagram verification sample:
 
 ```powershell

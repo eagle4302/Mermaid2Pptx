@@ -23,10 +23,10 @@ public sealed class PptxShape
     public int Id { get; set; }
     public required string Name { get; init; }
     public required PptxShapeKind Kind { get; init; }
-    public long X { get; init; }
-    public long Y { get; init; }
-    public long Cx { get; init; }
-    public long Cy { get; init; }
+    public long X { get; set; }
+    public long Y { get; set; }
+    public long Cx { get; set; }
+    public long Cy { get; set; }
     public string? PresetGeometry { get; init; }
     public int? PresetAdjustValue { get; init; }
     public IReadOnlyList<PptxPathCommand> PathCommands { get; init; } = [];

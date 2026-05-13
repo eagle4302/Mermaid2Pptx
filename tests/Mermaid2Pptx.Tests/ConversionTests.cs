@@ -367,6 +367,34 @@ public sealed class ConversionTests
     }
 
     [Fact]
+    public void Node_shapes_expand_to_keep_text_inside_diagram_unit()
+    {
+        var svg = Svg("""
+<g class="node" transform="translate(150,80)">
+  <rect x="-14" y="-10" width="28" height="20" fill="#ececff" stroke="#333333"/>
+  <foreignObject x="-14" y="-10" width="28" height="20">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="text-align: center; font-size: 16px; color: #111111;">
+      <span>contains</span>
+    </div>
+  </foreignObject>
+</g>
+""");
+
+        var scene = new SvgDocumentParser().Parse(svg);
+        var slide = new SvgToPowerPointMapper().MapSvgToSlide(scene, 13.333, 7.5);
+
+        var nodeShape = Assert.Single(slide.Shapes, shape => shape.Kind == PptxShapeKind.Preset && shape.PresetGeometry == "rect");
+        var textShape = Assert.Single(slide.Shapes, shape => shape.Kind == PptxShapeKind.Text);
+        var originalMappedWidth = UnitConversion.CreateViewportMap(scene.ViewBox, 13.333, 7.5).MapLengthX(28);
+
+        Assert.True(nodeShape.Cx > originalMappedWidth);
+        Assert.True(nodeShape.X <= textShape.X);
+        Assert.True(nodeShape.Y <= textShape.Y);
+        Assert.True(nodeShape.X + nodeShape.Cx >= textShape.X + textShape.Cx);
+        Assert.True(nodeShape.Y + nodeShape.Cy >= textShape.Y + textShape.Cy);
+    }
+
+    [Fact]
     public void Browser_serialized_foreignobject_void_tags_are_normalized()
     {
         var scene = new SvgDocumentParser().Parse(Svg("""
@@ -396,6 +424,83 @@ public sealed class ConversionTests
         Assert.Equal(36, texts[0].Lines.Single().Y, 3);
         Assert.Equal(28, texts[1].Lines.Single().Y, 3);
         Assert.Equal(16, texts[2].Lines.Single().Y, 3);
+    }
+
+    [Fact]
+    public void Inserts_native_shapes_into_existing_deck_without_media_or_duplicate_ids()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"mermaid2pptx-insert-source-{Guid.NewGuid():N}.pptx");
+        var target = Path.Combine(Path.GetTempPath(), $"mermaid2pptx-insert-target-{Guid.NewGuid():N}.pptx");
+        var output = Path.Combine(Path.GetTempPath(), $"mermaid2pptx-insert-output-{Guid.NewGuid():N}.pptx");
+
+        var sourceDeck = new PptxDeckModel { WidthInches = 13.333, HeightInches = 7.5 };
+        sourceDeck.Slides.Add(NativeSlideFromSvg(Svg("""
+<style>
+  .messageLine1 { stroke: #333333; stroke-width: 2px; stroke-dasharray: 3, 3; }
+</style>
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+    <path d="M 0 0 L 10 5 L 0 10 z"/>
+  </marker>
+</defs>
+<line class="messageLine1" x1="30" y1="80" x2="220" y2="80" stroke="none" marker-end="url(#arrow)"/>
+""")));
+        sourceDeck.Slides.Add(NativeSlideFromSvg(Svg("""
+<style>
+  .relationshipLine { stroke: #333333; stroke-width: 1px; fill: none; }
+  .marker { fill: none; stroke: #333333; stroke-width: 1px; }
+</style>
+<defs>
+  <marker id="er-onlyOneStart" class="marker onlyOne er" refX="0" refY="9" markerWidth="18" markerHeight="18" orient="auto">
+    <path d="M9,0 L9,18 M15,0 L15,18"/>
+  </marker>
+</defs>
+<path class="relationshipLine" d="M 120 20 L 120 140" marker-start="url(#er-onlyOneStart)"/>
+""")));
+        new DrawingMlWriter().Write(sourceDeck, source);
+
+        var targetDeck = new PptxDeckModel { WidthInches = 13.333, HeightInches = 7.5 };
+        targetDeck.Slides.Add(NativeSlideFromSvg(Svg("""<rect x="20" y="20" width="80" height="30" fill="#ffffff" stroke="#111111"/>""")));
+        targetDeck.Slides.Add(NativeSlideFromSvg(Svg("""<rect x="30" y="30" width="70" height="35" fill="#ffffff" stroke="#111111"/>""")));
+        new DrawingMlWriter().Write(targetDeck, target);
+
+        var result = new PptxShapeInserter().Insert(
+            source,
+            target,
+            output,
+            new Dictionary<int, int> { [1] = 1, [2] = 2 });
+
+        Assert.Equal(2, result.MappedSlideCount);
+        Assert.True(result.InsertedShapeCount >= 3);
+
+        using var document = PresentationDocument.Open(output, false);
+        Assert.NotNull(document.PresentationPart);
+        Assert.Empty(document.PresentationPart!.GetPartsOfType<ImagePart>());
+        Assert.Equal(2, document.PresentationPart.Presentation.SlideIdList!.Count());
+        var validationErrors = new OpenXmlValidator(FileFormatVersions.Office2019).Validate(document).ToArray();
+        Assert.True(validationErrors.Length == 0, string.Join(Environment.NewLine, validationErrors.Select(error => error.Description)));
+
+        using var zip = ZipFile.OpenRead(output);
+        Assert.DoesNotContain(zip.Entries, entry => entry.FullName.StartsWith("ppt/media/", StringComparison.OrdinalIgnoreCase));
+        var slide1Xml = ReadZipEntry(zip, "ppt/slides/slide1.xml");
+        var slide2Xml = ReadZipEntry(zip, "ppt/slides/slide2.xml");
+        Assert.Contains("<p:cxnSp>", slide1Xml);
+        Assert.Contains("<a:prstDash val=\"dash\"", slide1Xml);
+        Assert.Contains("<a:tailEnd type=\"triangle\"", slide1Xml);
+        Assert.Contains("Marker ", slide2Xml);
+        Assert.DoesNotContain("<p:pic", slide1Xml + slide2Xml);
+
+        AssertUniqueShapeIds(slide1Xml);
+        AssertUniqueShapeIds(slide2Xml);
+    }
+
+    [Fact]
+    public void Slide_map_uses_target_equals_source_pairs()
+    {
+        var map = PptxShapeInserter.ParseSlideMap("5=1, 14=6");
+
+        Assert.Equal(1, map[5]);
+        Assert.Equal(6, map[14]);
     }
 
     public static IEnumerable<object[]> SvgCases()
@@ -444,6 +549,24 @@ public sealed class ConversionTests
 {{body}}
 </svg>
 """;
+
+    private static PptxSlideModel NativeSlideFromSvg(string svg)
+    {
+        var scene = new SvgDocumentParser().Parse(svg);
+        return new SvgToPowerPointMapper().MapSvgToSlide(scene, 13.333, 7.5);
+    }
+
+    private static void AssertUniqueShapeIds(string slideXml)
+    {
+        XNamespace p = "http://schemas.openxmlformats.org/presentationml/2006/main";
+        var ids = XDocument.Parse(slideXml)
+            .Descendants(p + "cNvPr")
+            .Select(element => (string?)element.Attribute("id"))
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
+    }
 
     private static string ReadZipEntry(ZipArchive zip, string path)
     {

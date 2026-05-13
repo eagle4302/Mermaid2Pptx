@@ -53,6 +53,33 @@ Main entry points:
 - `Mermaid2Pptx.Web/Program.cs` posts Mermaid code to the converter and returns
   the PPTX download.
 
+## CLI Usage For Agents
+
+AI agents should pass Mermaid source to the CLI and exchange `.pptx` files, not
+raw DrawingML fragments. Generated decks remain native DrawingML shape decks.
+
+Standalone Mermaid input:
+
+```powershell
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid "graph TD; A-->B" --out out/diagram.pptx
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.pptx
+Get-Content diagram.mmd -Raw | dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-stdin --out out/diagram.pptx
+```
+
+Insert Mermaid-generated native shapes into an existing deck:
+
+```powershell
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx
+```
+
+Source selection rules:
+
+- Standalone conversion accepts exactly one source: `--html`, `--mermaid`,
+  `--mermaid-file`, or `--mermaid-stdin`.
+- Insert mode accepts either `--source-pptx` or exactly one conversion source.
+- `--map` uses 1-based `target=source` slide pairs, for example `"5=1,6=2"`.
+- Mermaid code input creates one source slide in v1.
+
 ### 1. SVG Extraction
 
 `MermaidSvgExtractor` uses Playwright to open the input HTML, wait for Mermaid to
