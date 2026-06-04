@@ -67,6 +67,33 @@ For minimal headless installs, Playwright also supports:
 pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install --only-shell chromium
 ```
 
+## Run on macOS
+
+Install the .NET 8 SDK first. If `pwsh` is not available, install PowerShell for
+macOS before installing Playwright browsers.
+
+```bash
+dotnet restore
+dotnet build src/Mermaid2Pptx/Mermaid2Pptx.csproj
+pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
+```
+
+For a minimal headless browser install on macOS:
+
+```bash
+pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install --only-shell chromium
+```
+
+Run the Web UI on macOS with:
+
+```bash
+dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
+```
+
+Then open `http://127.0.0.1:5088` in a browser. The `Start-WebUI.bat` and
+`Stop-WebUI.bat` helper scripts are Windows-only.
+
 ## Test
 
 ```powershell
@@ -79,7 +106,7 @@ If bundled Playwright Chromium is missing, the CLI automatically falls back to l
 
 ## Web UI
 
-Double-click `Start-WebUI.bat`, or run manually:
+On Windows, double-click `Start-WebUI.bat`, or run manually:
 
 ```powershell
 dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
