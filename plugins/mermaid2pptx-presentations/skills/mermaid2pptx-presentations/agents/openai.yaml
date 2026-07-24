@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mermaid2Pptx Presentations"
+  short_description: "Build PPTX decks with editable Mermaid diagrams"
+  default_prompt: "Use $mermaid2pptx-presentations to build a polished PowerPoint deck with editable native Mermaid diagrams."
