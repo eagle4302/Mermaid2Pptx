@@ -1,0 +1,15 @@
+{
+  "name": "mermaid2pptx-presentations",
+  "version": "0.1.0",
+  "description": "Build PowerPoint decks and insert editable native-shape Mermaid diagrams with Mermaid2Pptx.",
+  "author": {
+    "name": "Mermaid2Pptx Contributors"
+  },
+  "keywords": [
+    "powerpoint",
+    "pptx",
+    "mermaid",
+    "drawingml",
+    "presentations"
+  ]
+}
