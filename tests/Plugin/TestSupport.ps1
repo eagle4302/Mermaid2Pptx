@@ -30,13 +30,18 @@ function Assert-Throws {
         [string]$Pattern
     )
 
+    $caught = $null
     try {
         & $Action
-        throw "Expected action to throw: $Pattern"
     }
     catch {
-        if ($_.Exception.Message -notmatch $Pattern) {
-            throw "Expected error matching '$Pattern', got '$($_.Exception.Message)'."
-        }
+        $caught = $_
+    }
+
+    if ($null -eq $caught) {
+        throw "Expected action to throw an error matching '$Pattern', but it completed successfully."
+    }
+    if ($caught.Exception.Message -notmatch $Pattern) {
+        throw "Expected error matching '$Pattern', got '$($caught.Exception.Message)'."
     }
 }

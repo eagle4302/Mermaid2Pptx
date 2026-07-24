@@ -12,6 +12,7 @@ New-Item -ItemType Directory -Path $work | Out-Null
 $standalone = Join-Path $work "standalone.pptx"
 $inserted = Join-Path $work "inserted.pptx"
 $tampered = Join-Path $work "tampered.pptx"
+$invalidMermaid = Join-Path $work "invalid-mermaid.pptx"
 
 try {
     & dotnet run --no-build --project $project -- `
@@ -46,6 +47,14 @@ try {
     Assert-Equal (
         $insertedResult[0].BaselineImageRelationshipCount
     ) $insertedResult[0].ImageRelationshipCount "insertion image relationships"
+
+    & dotnet run --no-build --project $project -- `
+        --mermaid "this is not valid Mermaid syntax" `
+        --out $invalidMermaid
+    Assert-Equal 0 $LASTEXITCODE "invalid Mermaid renderer exit code"
+    Assert-Throws {
+        & $audit -Pptx $invalidMermaid -Standalone
+    } "Mermaid render error"
 
     Copy-Item -LiteralPath $standalone -Destination $tampered
     $archive = [IO.Compression.ZipFile]::Open(

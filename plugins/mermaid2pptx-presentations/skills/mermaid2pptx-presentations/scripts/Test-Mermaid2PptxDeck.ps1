@@ -133,6 +133,13 @@ function Get-PptxFacts {
                     "//*[local-name()='pic']"
                 ).Count
                 ImageRelationshipCount = $imageRelationshipCount
+                TextValues = @(
+                    $slideXml.SelectNodes(
+                        "//*[local-name()='t']"
+                    ) | ForEach-Object {
+                        $_.InnerText
+                    }
+                )
             }
         }
 
@@ -191,6 +198,14 @@ foreach ($slideNumber in $targetSlides) {
     }
 
     $candidateSlide = $candidate.Slides[$slideNumber - 1]
+    $renderErrors = @(
+        $candidateSlide.TextValues | Where-Object {
+            $_ -match "^\s*Syntax error in text\s*$"
+        }
+    )
+    if ($renderErrors.Count -gt 0) {
+        throw "Mermaid render error detected on diagram slide ${slideNumber}: Syntax error in text."
+    }
     if ($candidateSlide.ShapeCount -le 0) {
         throw "Diagram slide $slideNumber contains no native shapes or connectors."
     }
