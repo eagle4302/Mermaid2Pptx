@@ -15,6 +15,7 @@ $fromHtml = Join-Path $work "from-html.pptx"
 $inserted = Join-Path $work "inserted.pptx"
 $fromSourcePptx = Join-Path $work "from-source-pptx.pptx"
 $badMap = Join-Path $work "bad-map.pptx"
+$preflightMap = Join-Path $work "preflight-map.pptx"
 $invalidMermaid = Join-Path $work "invalid-mermaid.pptx"
 
 try {
@@ -65,6 +66,16 @@ try {
             -Out $standalone
     } "already exists"
 
+    $beforeForceHash = (Get-FileHash $standalone -Algorithm SHA256).Hash
+    & $invoke `
+        -RepoRoot $repo `
+        -Mermaid "graph TD; Forced-->Replacement" `
+        -Out $standalone `
+        -Force
+    Assert-True (
+        (Get-FileHash $standalone -Algorithm SHA256).Hash -ne $beforeForceHash
+    ) "forced replacement publishes a new deck"
+
     Assert-Throws {
         & $invoke `
             -RepoRoot $repo `
@@ -76,6 +87,18 @@ try {
     Assert-True (
         -not (Test-Path -LiteralPath $badMap)
     ) "invalid mapping publishes nothing"
+
+    Assert-Throws {
+        & $invoke `
+            -RepoRoot (Join-Path $work "missing-repository") `
+            -Mermaid "graph TD; X-->Y" `
+            -InsertInto $standalone `
+            -Map "99=1" `
+            -Out $preflightMap
+    } "outside the target deck slide range"
+    Assert-True (
+        -not (Test-Path -LiteralPath $preflightMap)
+    ) "preflight mapping publishes nothing"
 
     Assert-Throws {
         & $invoke `

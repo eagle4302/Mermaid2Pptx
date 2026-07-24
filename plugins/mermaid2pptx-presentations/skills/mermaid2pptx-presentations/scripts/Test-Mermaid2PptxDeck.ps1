@@ -109,30 +109,46 @@ function Get-PptxFacts {
             $slideRelationshipPart = Get-SlideRelationshipPart `
                 -SlidePart $slidePart
             $imageRelationshipCount = 0
+            $imageRelationshipSignatures = @()
             $slideRelationshipEntry = $archive.GetEntry($slideRelationshipPart)
             if ($null -ne $slideRelationshipEntry) {
                 [xml]$slideRelationships = Read-ZipEntryText `
                     -Archive $archive `
                     -EntryName $slideRelationshipPart
-                $imageRelationshipCount = @(
+                $imageRelationships = @(
                     $slideRelationships.SelectNodes(
                         "//*[local-name()='Relationship']"
                     ) | Where-Object {
                         $_.Type -match "/image$"
                     }
-                ).Count
+                )
+                $imageRelationshipCount = $imageRelationships.Count
+                $imageRelationshipSignatures = @(
+                    $imageRelationships | ForEach-Object {
+                        "$($_.Id)|$($_.Type)|$($_.Target)|$($_.GetAttribute('TargetMode'))"
+                    } | Sort-Object
+                )
             }
 
+            $pictures = @(
+                $slideXml.SelectNodes(
+                    "//*[local-name()='pic']"
+                )
+            )
             $slides += [PSCustomObject]@{
                 Number = $slideNumber
                 Part = $slidePart
                 ShapeCount = $slideXml.SelectNodes(
                     "//*[local-name()='sp' or local-name()='cxnSp']"
                 ).Count
-                PictureCount = $slideXml.SelectNodes(
-                    "//*[local-name()='pic']"
-                ).Count
+                PictureCount = $pictures.Count
+                PictureSignatures = @(
+                    $pictures | ForEach-Object {
+                        $_.OuterXml
+                    }
+                )
                 ImageRelationshipCount = $imageRelationshipCount
+                ImageRelationshipSignatures = $imageRelationshipSignatures
                 TextValues = @(
                     $slideXml.SelectNodes(
                         "//*[local-name()='t']"
@@ -228,9 +244,17 @@ foreach ($slideNumber in $targetSlides) {
         if ($candidateSlide.PictureCount -ne $baselineSlide.PictureCount) {
             throw "Diagram slide $slideNumber changed p:pic count from $($baselineSlide.PictureCount) to $($candidateSlide.PictureCount)."
         }
+        if (($candidateSlide.PictureSignatures -join "`n") -ne
+            ($baselineSlide.PictureSignatures -join "`n")) {
+            throw "Diagram slide $slideNumber changed existing p:pic content."
+        }
         if ($candidateSlide.ImageRelationshipCount -ne
             $baselineSlide.ImageRelationshipCount) {
             throw "Diagram slide $slideNumber changed image relationship count from $($baselineSlide.ImageRelationshipCount) to $($candidateSlide.ImageRelationshipCount)."
+        }
+        if (($candidateSlide.ImageRelationshipSignatures -join "`n") -ne
+            ($baselineSlide.ImageRelationshipSignatures -join "`n")) {
+            throw "Diagram slide $slideNumber changed existing image relationships."
         }
     }
 

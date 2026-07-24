@@ -65,7 +65,6 @@ $resolvedRoot = Resolve-Mermaid2PptxRepository -RequestedRoot $RepoRoot
 $solutionPath = Join-Path $resolvedRoot "Mermaid2Pptx.sln"
 $projectPath = Join-Path $resolvedRoot "src/Mermaid2Pptx/Mermaid2Pptx.csproj"
 $qaProjectPath = Join-Path $resolvedRoot "src/Mermaid2Pptx.Qa/Mermaid2Pptx.Qa.csproj"
-$assetsPath = Join-Path $resolvedRoot "src/Mermaid2Pptx/obj/project.assets.json"
 
 try {
     $dotnet = Get-Command -Name $DotnetCommand -ErrorAction Stop
@@ -92,12 +91,14 @@ if (-not ($sdks | Where-Object { $_ -match "^\s*8\." })) {
 
 Push-Location $resolvedRoot
 try {
-    if ($ForceRestore -or -not (Test-Path -LiteralPath $assetsPath)) {
-        Invoke-NativeCommand `
-            -Command $dotnetPath `
-            -Arguments @("restore", $solutionPath) `
-            -FailureMessage "dotnet restore failed."
+    $restoreArguments = @("restore", $solutionPath)
+    if ($ForceRestore) {
+        $restoreArguments += "--force"
     }
+    Invoke-NativeCommand `
+        -Command $dotnetPath `
+        -Arguments $restoreArguments `
+        -FailureMessage "dotnet restore failed."
 
     Invoke-NativeCommand `
         -Command $dotnetPath `

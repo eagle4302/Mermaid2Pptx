@@ -90,6 +90,33 @@ function Get-TargetSlideNumbers {
     return @($targets | Select-Object -Unique)
 }
 
+function Get-PresentationSlideCount {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entry = $archive.GetEntry("ppt/presentation.xml")
+        if ($null -eq $entry) {
+            throw "PPTX package is missing ppt/presentation.xml: $Path"
+        }
+        $stream = $entry.Open()
+        $reader = [IO.StreamReader]::new($stream)
+        try {
+            [xml]$presentation = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+            $stream.Dispose()
+        }
+        return $presentation.SelectNodes(
+            "//*[local-name()='sldId']"
+        ).Count
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
 $outputPath = [IO.Path]::GetFullPath($Out)
 if (-not $outputPath.EndsWith(".pptx", [StringComparison]::OrdinalIgnoreCase)) {
     throw "Output path must end with .pptx: $outputPath"
@@ -112,6 +139,12 @@ if (-not [string]::IsNullOrWhiteSpace($InsertInto)) {
         -OutputPath $outputPath `
         -SourcePath $insertPath `
         -SourceLabel "insert source"
+    $targetSlideCount = Get-PresentationSlideCount -Path $insertPath
+    foreach ($targetSlide in $targetSlides) {
+        if ($targetSlide -gt $targetSlideCount) {
+            throw "Target slide $targetSlide is outside the target deck slide range 1-$targetSlideCount."
+        }
+    }
 }
 elseif (-not [string]::IsNullOrWhiteSpace($Map)) {
     throw "-Map can only be used with -InsertInto."
@@ -120,6 +153,14 @@ elseif (-not [string]::IsNullOrWhiteSpace($Map)) {
 if ($PSCmdlet.ParameterSetName -eq "SourcePptx" -and
     [string]::IsNullOrWhiteSpace($InsertInto)) {
     throw "-SourcePptx requires -InsertInto."
+}
+if ($PSCmdlet.ParameterSetName -eq "Mermaid" -and
+    [string]::IsNullOrWhiteSpace($Mermaid)) {
+    throw "Mermaid source cannot be empty."
+}
+if ($PSCmdlet.ParameterSetName -eq "MermaidStdin" -and
+    [string]::IsNullOrWhiteSpace($MermaidInput)) {
+    throw "Mermaid stdin source cannot be empty. Pipe one raw string, for example Get-Content diagram.mmd -Raw."
 }
 
 $sourcePath = $null
@@ -163,14 +204,12 @@ $environment = $null
 try {
     $initializer = Join-Path $PSScriptRoot "Initialize-Mermaid2Pptx.ps1"
     $audit = Join-Path $PSScriptRoot "Test-Mermaid2PptxDeck.ps1"
+    $publisher = Join-Path $PSScriptRoot "Publish-Mermaid2PptxCandidate.ps1"
     $environment = & $initializer -RepoRoot $RepoRoot
 
     $converterArguments = @()
     switch ($PSCmdlet.ParameterSetName) {
         "Mermaid" {
-            if ([string]::IsNullOrWhiteSpace($Mermaid)) {
-                throw "Mermaid source cannot be empty."
-            }
             $converterArguments += @("--mermaid", $Mermaid)
         }
         "MermaidFile" {
@@ -178,9 +217,6 @@ try {
         }
         "MermaidStdin" {
             $stdinContent = $MermaidInput
-            if ([string]::IsNullOrWhiteSpace($stdinContent)) {
-                throw "Mermaid stdin source cannot be empty. Pipe one raw string, for example Get-Content diagram.mmd -Raw."
-            }
             $stdinPath = Join-Path (
                 [IO.Path]::GetTempPath()
             ) "mermaid2pptx-stdin-$([guid]::NewGuid().ToString('N')).mmd"
@@ -245,10 +281,10 @@ try {
     }
     Write-Host "Validated Mermaid slides: $($auditResults.Count)"
 
-    if (Test-Path -LiteralPath $outputPath) {
-        Remove-Item -LiteralPath $outputPath -Force
-    }
-    Move-Item -LiteralPath $candidatePath -Destination $outputPath
+    & $publisher `
+        -Candidate $candidatePath `
+        -Destination $outputPath `
+        -Force:$Force | Out-Null
     $outputPath
 }
 catch {
@@ -260,8 +296,9 @@ catch {
             Join-Path $outputDirectory "plugin-diagnostics"
         }
         New-Item -ItemType Directory -Path $diagnosticRoot -Force | Out-Null
-        $diagnosticName = "{0}-{1}" -f @(
+        $diagnosticName = "{0}-{1}-{2}" -f @(
             (Get-Date -Format "yyyyMMdd-HHmmss"),
+            [guid]::NewGuid().ToString("N"),
             [IO.Path]::GetFileName($outputPath)
         )
         $diagnosticPath = Join-Path $diagnosticRoot $diagnosticName

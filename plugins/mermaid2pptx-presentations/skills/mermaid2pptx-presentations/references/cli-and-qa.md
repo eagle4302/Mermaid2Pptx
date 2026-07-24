@@ -60,7 +60,9 @@ Insert slides from an existing diagram deck:
 
 Maps are 1-based `target=source` pairs. The wrapper preserves the insertion
 source, refuses an existing destination unless `-Force` is explicit, and
-compares mapped target slides against the original deck.
+compares mapped target slides against the original deck. Publication uses a
+same-directory atomic move; `-Force` replaces an existing final through an
+atomic rollback-backed operation.
 
 ## Fast and full QA
 

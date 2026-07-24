@@ -34,6 +34,7 @@ $requiredSkillFiles = @(
     "scripts/Initialize-Mermaid2Pptx.ps1",
     "scripts/Invoke-Mermaid2Pptx.ps1",
     "scripts/Invoke-Mermaid2PptxQa.ps1",
+    "scripts/Publish-Mermaid2PptxCandidate.ps1",
     "scripts/Test-Mermaid2PptxDeck.ps1"
 )
 foreach ($requiredSkillFile in $requiredSkillFiles) {
