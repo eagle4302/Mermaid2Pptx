@@ -105,6 +105,24 @@ dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://
 Then open `http://127.0.0.1:5088` in a browser. The `Start-WebUI.bat` and
 `Stop-WebUI.bat` helper scripts are Windows-only.
 
+## Claude Code plugin
+
+This repository is also a local Claude Code plugin marketplace. Install the
+`mermaid2pptx-presentations` plugin from a Claude Code session started in the
+repository root:
+
+```text
+/plugin marketplace add .
+/plugin install mermaid2pptx-presentations@mermaid2pptx-team
+/reload-plugins
+```
+
+After install, the `mermaid2pptx-presentations` skill and the `/mermaid-deck`
+command are available. The skill builds narrative slides with
+`anthropic-skills:pptx` and inserts editable native-shape Mermaid diagrams with
+the Mermaid2Pptx converter. The same plugin directory also ships an OpenAI Codex
+manifest (`.codex-plugin/plugin.json`) over the shared skill and scripts.
+
 ## Test
 
 ```powershell
