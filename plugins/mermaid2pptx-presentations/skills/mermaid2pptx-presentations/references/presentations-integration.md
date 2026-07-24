@@ -1,5 +1,9 @@
 # Presentations integration
 
+> **Host skill:** In this document, `presentations:Presentations` names the
+> host's native presentation skill. On Claude Code it is `anthropic-skills:pptx`;
+> on OpenAI Codex it is `presentations:Presentations`.
+
 Use `presentations:Presentations` as the owner of the full deck. It determines
 the story, theme, layouts, ordinary visuals, speaker-facing structure, and
 deck-level visual QA. Use Mermaid2Pptx only for slides or regions that require
