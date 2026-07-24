@@ -26,6 +26,17 @@ samples/
   all-diagrams.html
 ```
 
+## Repository Artifact Policy
+
+Commit source code, tests, plugin files, documentation, and reproducible
+Mermaid, HTML, or Markdown inputs.
+
+Do not commit generated PowerPoint decks, QA output, build artifacts, or local
+presentation projects. Generated `.pptx` files are ignored globally, and local
+deliverables belong under `outputs/`. If a binary PPTX fixture is ever required,
+add a narrowly scoped `.gitignore` exception together with the test that needs
+it.
+
 ## Run
 
 ```powershell
