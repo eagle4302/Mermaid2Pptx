@@ -4,6 +4,13 @@
 * text=auto
 
 ###############################################################################
+# Force shell scripts to LF so they run on Linux/macOS even when the repo is
+# checked out on Windows, and keep Windows batch files as CRLF.
+###############################################################################
+*.sh  text eol=lf
+*.bat text eol=crlf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

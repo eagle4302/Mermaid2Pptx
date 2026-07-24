@@ -96,14 +96,27 @@ For a minimal headless browser install on macOS:
 pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install --only-shell chromium
 ```
 
-Run the Web UI on macOS with:
+Run the Web UI on macOS or Linux with the helper script:
+
+```bash
+./start-webui.sh
+```
+
+It checks for the .NET SDK, starts the server, and opens your browser at
+`http://127.0.0.1:5088`. Stop it with `Ctrl+C`, or from another terminal:
+
+```bash
+./stop-webui.sh
+```
+
+You can also start the server manually without the helper:
 
 ```bash
 dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
 ```
 
-Then open `http://127.0.0.1:5088` in a browser. The `Start-WebUI.bat` and
-`Stop-WebUI.bat` helper scripts are Windows-only.
+`start-webui.sh` / `stop-webui.sh` are the macOS/Linux counterparts of the
+Windows `Start-WebUI.bat` / `Stop-WebUI.bat` helpers.
 
 ## Claude Code plugin
 
@@ -135,7 +148,9 @@ If bundled Playwright Chromium is missing, the CLI automatically falls back to l
 
 ## Web UI
 
-On Windows, double-click `Start-WebUI.bat`, or run manually:
+On Windows, double-click `Start-WebUI.bat` (stop with `Stop-WebUI.bat`). On macOS
+or Linux, run `./start-webui.sh` (stop with `./stop-webui.sh`). Either way, you
+can also start the server manually:
 
 ```powershell
 dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
