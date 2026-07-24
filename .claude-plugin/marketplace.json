@@ -1,0 +1,19 @@
+{
+  "name": "mermaid2pptx-team",
+  "owner": {
+    "name": "Mermaid2Pptx Contributors"
+  },
+  "metadata": {
+    "description": "Local marketplace for the Mermaid2Pptx presentations plugin.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "mermaid2pptx-presentations",
+      "source": "./plugins/mermaid2pptx-presentations",
+      "description": "Build PowerPoint decks and insert editable native-shape Mermaid diagrams with Mermaid2Pptx.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}
