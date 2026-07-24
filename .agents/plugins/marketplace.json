@@ -1,0 +1,20 @@
+{
+  "name": "mermaid2pptx-team",
+  "interface": {
+    "displayName": "Mermaid2Pptx Team"
+  },
+  "plugins": [
+    {
+      "name": "mermaid2pptx-presentations",
+      "source": {
+        "source": "local",
+        "path": "./plugins/mermaid2pptx-presentations"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "mermaid2pptx-presentations",
+  "version": "0.1.0",
+  "description": "Build PowerPoint decks and insert editable native-shape Mermaid diagrams with Mermaid2Pptx.",
+  "author": {
+    "name": "Mermaid2Pptx Contributors"
+  },
+  "keywords": [
+    "powerpoint",
+    "pptx",
+    "mermaid",
+    "drawingml",
+    "presentations"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Mermaid2Pptx Presentations",
+    "shortDescription": "Editable Mermaid diagrams in complete PowerPoint decks.",
+    "longDescription": "Coordinates complete presentation production and uses Mermaid2Pptx to insert editable native DrawingML diagrams into new or existing PPTX files.",
+    "developerName": "Mermaid2Pptx Contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Create a PowerPoint deck with editable Mermaid diagrams.",
+      "Add a native Mermaid flowchart to an existing PPTX.",
+      "Run Mermaid2Pptx visual and XML QA."
+    ]
+  }
+}
