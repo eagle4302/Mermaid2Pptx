@@ -10,6 +10,7 @@ description: Use when creating or editing PowerPoint PPTX decks that need editab
 Build the deck with the host's native presentation skill; convert only Mermaid
 diagrams with this skill's scripts. Exchange complete `.pptx` files between the
 two workflows so every converted diagram remains editable native DrawingML.
+The wrappers require PowerShell 5.1 or later; PowerShell 7 is optional.
 
 **REQUIRED SUB-SKILL:** Use the host's native presentation skill for narrative,
 ordinary slides, layout, template fidelity, and deck-level visual review:
@@ -42,8 +43,9 @@ the last successful operation.
    have that skill prepare the diagram targets on a scratch working copy.
    Use that prepared copy as the first insertion source.
 3. Run `scripts/Invoke-Mermaid2Pptx.ps1`. It discovers or accepts the repository,
-   prepares .NET and Playwright automatically, writes a candidate, performs the
-   fast native-shape audit, and publishes only after validation.
+   prepares .NET and Playwright automatically, invokes the built
+   `mermaid2pptx` CLI, writes a candidate, performs the fast native-shape audit,
+   and publishes only after validation.
 4. For multiple diagrams, chain each validated result through unique scratch
    `.pptx` paths. Write the requested final path only on the last insertion.
 5. Perform deck-level visual review with the host presentation skill. Run
@@ -69,6 +71,7 @@ DrawingML fragments.
 |---|---|
 | Story, theme, ordinary slides, template fidelity | Host presentation skill (`anthropic-skills:pptx` / `presentations:Presentations`) |
 | Editable Mermaid shapes and connectors | `Invoke-Mermaid2Pptx.ps1` |
+| Direct installed converter command | `mermaid2pptx` .NET tool |
 | Default package check | Built into the invocation script |
 | Full Mermaid visual/XML comparison | `Invoke-Mermaid2PptxQa.ps1` |
 
@@ -76,6 +79,7 @@ DrawingML fragments.
 
 - Do not rasterize Mermaid diagrams or insert SVG/PNG screenshots as output.
 - Do not run manual setup before the initializer; let the wrapper prepare it.
+- Do not require PowerShell 7 on Windows; Windows PowerShell 5.1 is supported.
 - Do not overwrite a template or reuse the final path for intermediate decks.
 - Do not overlay a diagram onto occupied content; prepare its target first.
 - Do not hand-roll a deck-wide ZIP check; use the target-slide baseline audit.

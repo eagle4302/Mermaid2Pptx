@@ -5,6 +5,15 @@ namespace Mermaid2Pptx.Tests;
 public sealed class CliOptionsTests
 {
     [Fact]
+    public void Parses_setup_command()
+    {
+        var options = CliOptions.Parse(["setup"]);
+
+        Assert.Equal(CliCommand.Setup, options.Command);
+        Assert.Equal(0, options.ConversionSourceCount);
+    }
+
+    [Fact]
     public void Parses_inline_mermaid_source()
     {
         var options = CliOptions.Parse(["--mermaid", "graph TD; A-->B", "--out", "diagram.pptx"]);

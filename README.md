@@ -37,21 +37,32 @@ deliverables belong under `outputs/`. If a binary PPTX fixture is ever required,
 add a narrowly scoped `.gitignore` exception together with the test that needs
 it.
 
-## Run
+## Install The CLI
+
+Install the .NET 8 SDK, then pack and install the repository CLI:
 
 ```powershell
 dotnet restore
-dotnet build src/Mermaid2Pptx/Mermaid2Pptx.csproj
-pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
+dotnet pack src/Mermaid2Pptx/Mermaid2Pptx.csproj --configuration Release --output out/packages
+dotnet tool install --global Mermaid2Pptx.Tool --add-source (Resolve-Path out/packages) --version 0.1.0
+mermaid2pptx setup
 ```
 
-You can also pass Mermaid source directly and still get a native-shape PPTX:
+`setup` installs Playwright Chromium once. The converter can fall back to local
+Edge or Chrome, but the bundled Chromium produces the most predictable result.
+
+Use `dotnet tool update` with the same source and version options when
+installing a newer package version.
+
+## Run
+
+Convert rendered HTML or Mermaid source directly:
 
 ```powershell
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid "graph TD; A-->B" --out out/inline-mermaid.pptx
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.pptx
-Get-Content diagram.mmd -Raw | dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-stdin --out out/diagram.pptx
+mermaid2pptx --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
+mermaid2pptx --mermaid "graph TD; A-->B" --out out/inline-mermaid.pptx
+mermaid2pptx --mermaid-file diagram.mmd --out out/diagram.pptx
+Get-Content diagram.mmd -Raw | mermaid2pptx --mermaid-stdin --out out/diagram.pptx
 ```
 
 For AI agents, the recommended exchange format is still `.pptx`, not raw
@@ -59,7 +70,7 @@ DrawingML fragments. Generate a temporary native-shape diagram deck, or insert i
 directly into an existing deck:
 
 ```powershell
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx
+mermaid2pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx
 ```
 
 CLI source inputs are mutually exclusive: use exactly one of `--html`,
@@ -69,31 +80,27 @@ existing native-shape source deck via `--source-pptx`.
 Seven-diagram verification sample:
 
 ```powershell
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/all-diagrams.html --out out/all-diagrams.pptx --slide-selector ".slide" --svg-selector "svg"
+mermaid2pptx --html samples/all-diagrams.html --out out/all-diagrams.pptx --slide-selector ".slide" --svg-selector "svg"
 ```
 
-For minimal headless installs, Playwright also supports:
+For repository-local development without a global tool installation:
 
 ```powershell
-pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install --only-shell chromium
+dotnet build Mermaid2Pptx.sln
+.\src\Mermaid2Pptx\bin\Debug\net8.0\Mermaid2Pptx.exe setup
+.\src\Mermaid2Pptx\bin\Debug\net8.0\Mermaid2Pptx.exe --mermaid "graph TD; A-->B" --out out/diagram.pptx
 ```
 
 ## Run on macOS
 
-Install the .NET 8 SDK first. If `pwsh` is not available, install PowerShell for
-macOS before installing Playwright browsers.
+Install the .NET 8 SDK first. The installed CLI does not require PowerShell:
 
 ```bash
 dotnet restore
-dotnet build src/Mermaid2Pptx/Mermaid2Pptx.csproj
-pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium
-dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
-```
-
-For a minimal headless browser install on macOS:
-
-```bash
-pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install --only-shell chromium
+dotnet pack src/Mermaid2Pptx/Mermaid2Pptx.csproj --configuration Release --output out/packages
+dotnet tool install --global Mermaid2Pptx.Tool --add-source "$(pwd)/out/packages" --version 0.1.0
+mermaid2pptx setup
+mermaid2pptx --html samples/sample.html --out out/sample.pptx --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
 ```
 
 Run the Web UI on macOS or Linux with the helper script:

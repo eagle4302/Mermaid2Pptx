@@ -1,3 +1,5 @@
+#requires -Version 5.1
+
 [CmdletBinding(DefaultParameterSetName = "MermaidFile")]
 param(
     [Parameter(Mandatory, ParameterSetName = "Mermaid")]
@@ -29,6 +31,7 @@ param(
     [string]$SvgSelector = "svg",
     [double]$Width = 13.333,
     [double]$Height = 7.5,
+    [switch]$SkipBrowserInstall,
     [switch]$Force
 )
 
@@ -205,7 +208,9 @@ try {
     $initializer = Join-Path $PSScriptRoot "Initialize-Mermaid2Pptx.ps1"
     $audit = Join-Path $PSScriptRoot "Test-Mermaid2PptxDeck.ps1"
     $publisher = Join-Path $PSScriptRoot "Publish-Mermaid2PptxCandidate.ps1"
-    $environment = & $initializer -RepoRoot $RepoRoot
+    $environment = & $initializer `
+        -RepoRoot $RepoRoot `
+        -SkipBrowserInstall:$SkipBrowserInstall
 
     $converterArguments = @()
     switch ($PSCmdlet.ParameterSetName) {
@@ -252,10 +257,7 @@ try {
     )
 
     $commandOutput = @(
-        & dotnet run `
-            --no-build `
-            --project $environment.ProjectPath `
-            -- @converterArguments 2>&1
+        & $environment.CliPath @converterArguments 2>&1
     )
     $conversionExitCode = $LASTEXITCODE
     $commandOutput | ForEach-Object { Write-Host $_ }

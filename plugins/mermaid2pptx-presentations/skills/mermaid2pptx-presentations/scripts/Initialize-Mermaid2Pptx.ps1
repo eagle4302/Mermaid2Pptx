@@ -1,3 +1,5 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [string]$RepoRoot = $env:MERMAID2PPTX_REPO,
@@ -61,6 +63,25 @@ function Invoke-NativeCommand {
     }
 }
 
+function Resolve-BuiltExecutable {
+    param(
+        [Parameter(Mandatory)][string]$Directory,
+        [Parameter(Mandatory)][string]$BaseName
+    )
+
+    $fileName = if ($env:OS -eq "Windows_NT") {
+        "$BaseName.exe"
+    }
+    else {
+        $BaseName
+    }
+    $path = Join-Path $Directory $fileName
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Build completed without producing executable: $path"
+    }
+    return $path
+}
+
 $resolvedRoot = Resolve-Mermaid2PptxRepository -RequestedRoot $RepoRoot
 $solutionPath = Join-Path $resolvedRoot "Mermaid2Pptx.sln"
 $projectPath = Join-Path $resolvedRoot "src/Mermaid2Pptx/Mermaid2Pptx.csproj"
@@ -109,13 +130,19 @@ finally {
     Pop-Location
 }
 
+$cliPath = Resolve-BuiltExecutable `
+    -Directory (Join-Path $resolvedRoot "src/Mermaid2Pptx/bin/Debug/net8.0") `
+    -BaseName "Mermaid2Pptx"
+$qaCliPath = Resolve-BuiltExecutable `
+    -Directory (Join-Path $resolvedRoot "src/Mermaid2Pptx.Qa/bin/Debug/net8.0") `
+    -BaseName "Mermaid2Pptx.Qa"
 $playwrightScript = Join-Path $resolvedRoot "src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1"
 if (-not (Test-Path -LiteralPath $playwrightScript)) {
     throw "Build completed without producing the Playwright installer: $playwrightScript"
 }
 
 if (-not $SkipBrowserInstall) {
-    & $playwrightScript install chromium 2>&1 |
+    & $cliPath setup 2>&1 |
         ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) {
         throw "Playwright Chromium installation failed. Exit code: $LASTEXITCODE."
@@ -127,5 +154,8 @@ if (-not $SkipBrowserInstall) {
     SolutionPath = $solutionPath
     ProjectPath = $projectPath
     QaProjectPath = $qaProjectPath
+    CliPath = $cliPath
+    QaCliPath = $qaCliPath
+    DotnetPath = $dotnetPath
     PlaywrightScript = $playwrightScript
 }

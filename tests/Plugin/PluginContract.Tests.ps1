@@ -12,7 +12,9 @@ $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $marketplace = Get-Content -LiteralPath $marketplacePath -Raw | ConvertFrom-Json
 
 Assert-Equal "mermaid2pptx-presentations" $manifest.name "manifest name"
-Assert-Equal "0.1.0" $manifest.version "manifest version"
+Assert-True (
+    $manifest.version -match '^0\.1\.0\+codex\.\d{14}$'
+) "manifest version has a local-development cachebuster"
 Assert-Equal "./skills/" $manifest.skills "skill path"
 Assert-True ($manifest.PSObject.Properties.Name -notcontains "mcpServers") "manifest omits MCP"
 Assert-True ($manifest.PSObject.Properties.Name -notcontains "apps") "manifest omits apps"
@@ -44,10 +46,40 @@ foreach ($requiredSkillFile in $requiredSkillFiles) {
     ) "skill file exists: $requiredSkillFile"
 }
 
+$publicScripts = @(
+    Get-ChildItem -LiteralPath (Join-Path $skillRoot "scripts") `
+        -Filter "*.ps1" `
+        -File
+)
+foreach ($script in $publicScripts) {
+    Assert-Equal "#requires -Version 5.1" (
+        Get-Content -LiteralPath $script.FullName -TotalCount 1
+    ) "PowerShell version preflight: $($script.Name)"
+}
+
+$invocationScriptText = Get-Content `
+    -LiteralPath (Join-Path $skillRoot "scripts/Invoke-Mermaid2Pptx.ps1") `
+    -Raw
+$qaScriptText = Get-Content `
+    -LiteralPath (Join-Path $skillRoot "scripts/Invoke-Mermaid2PptxQa.ps1") `
+    -Raw
+Assert-True (
+    $invocationScriptText -notmatch '\bdotnet\s+run\b'
+) "invocation wrapper avoids dotnet run"
+Assert-True (
+    $qaScriptText -notmatch '\bdotnet\s+run\b'
+) "QA wrapper avoids dotnet run"
+
 $skillText = Get-Content -LiteralPath (Join-Path $skillRoot "SKILL.md") -Raw
 Assert-True (
     $skillText -notmatch [regex]::Escape("E:\project\Mermaid2PPTX")
 ) "skill contains no machine-specific repository path"
+Assert-True (
+    $skillText -match "PowerShell 5\.1"
+) "skill documents PowerShell 5.1 compatibility"
+Assert-True (
+    $skillText -match [regex]::Escape('`mermaid2pptx` CLI')
+) "skill documents the installable CLI"
 
 $openAiMetadata = Get-Content `
     -LiteralPath (Join-Path $skillRoot "agents/openai.yaml") `

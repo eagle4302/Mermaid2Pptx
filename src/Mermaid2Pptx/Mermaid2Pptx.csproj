@@ -6,6 +6,13 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Mermaid2Pptx</RootNamespace>
     <AssemblyName>Mermaid2Pptx</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>mermaid2pptx</ToolCommandName>
+    <PackageId>Mermaid2Pptx.Tool</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Mermaid2Pptx Contributors</Authors>
+    <Description>Convert Mermaid diagrams into editable native-shape PowerPoint PPTX files.</Description>
+    <PackageTags>mermaid;powerpoint;pptx;drawingml;cli</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

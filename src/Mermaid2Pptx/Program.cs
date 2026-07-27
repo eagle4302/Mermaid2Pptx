@@ -7,10 +7,14 @@ public static class Program
         try
         {
             var options = CliOptions.Parse(args);
-            if (options.ShowHelp)
+            if (options.Command == CliCommand.Help)
             {
                 Console.WriteLine(CliOptions.HelpText);
                 return 0;
+            }
+            if (options.Command == CliCommand.Setup)
+            {
+                return InstallPlaywrightChromium();
             }
 
             if (string.IsNullOrWhiteSpace(options.OutputPath))
@@ -88,6 +92,17 @@ public static class Program
         }
     }
 
+    private static int InstallPlaywrightChromium()
+    {
+        Console.WriteLine("Installing Playwright Chromium...");
+        var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        if (exitCode == 0)
+        {
+            Console.WriteLine("Playwright Chromium is ready.");
+        }
+        return exitCode;
+    }
+
     private static async Task<ConversionResult> ConvertInputSourceToPptxAsync(
         CliOptions options,
         MermaidPptxConverter converter,
@@ -163,6 +178,13 @@ public static class Program
     }
 }
 
+public enum CliCommand
+{
+    Convert,
+    Setup,
+    Help
+}
+
 public sealed class CliOptions
 {
     public string HtmlPath { get; init; } = string.Empty;
@@ -177,7 +199,7 @@ public sealed class CliOptions
     public double WidthInches { get; init; } = 13.333;
     public double HeightInches { get; init; } = 7.5;
     public bool ReadMermaidFromStdIn { get; init; }
-    public bool ShowHelp { get; init; }
+    public CliCommand Command { get; init; } = CliCommand.Convert;
 
     public int ConversionSourceCount =>
         CountSource(HtmlPath) +
@@ -224,15 +246,17 @@ public sealed class CliOptions
     public static string HelpText =>
         """
 Usage:
-  Mermaid2Pptx --html input.html --out output.pptx [options]
-  Mermaid2Pptx --mermaid "graph TD; A-->B" --out diagram.pptx [options]
-  Mermaid2Pptx --mermaid-file diagram.mmd --out diagram.pptx [options]
-  Get-Content diagram.mmd -Raw | Mermaid2Pptx --mermaid-stdin --out diagram.pptx [options]
-  Mermaid2Pptx --html diagrams.html --insert-into base.pptx --map "5=1,6=2" --out final.pptx [options]
-  Mermaid2Pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx [options]
-  Mermaid2Pptx --source-pptx diagrams.pptx --insert-into base.pptx --map "5=1,6=2" --out final.pptx
+  mermaid2pptx setup
+  mermaid2pptx --html input.html --out output.pptx [options]
+  mermaid2pptx --mermaid "graph TD; A-->B" --out diagram.pptx [options]
+  mermaid2pptx --mermaid-file diagram.mmd --out diagram.pptx [options]
+  Get-Content diagram.mmd -Raw | mermaid2pptx --mermaid-stdin --out diagram.pptx [options]
+  mermaid2pptx --html diagrams.html --insert-into base.pptx --map "5=1,6=2" --out final.pptx [options]
+  mermaid2pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx [options]
+  mermaid2pptx --source-pptx diagrams.pptx --insert-into base.pptx --map "5=1,6=2" --out final.pptx
 
 Options:
+  setup                       Install Playwright Chromium for deterministic rendering
   --html input.html           HTML file containing rendered Mermaid SVG
   --mermaid "graph TD; A-->B" Inline Mermaid code for a single-slide diagram deck
   --mermaid-file diagram.mmd  File containing Mermaid code for a single-slide diagram deck
@@ -248,15 +272,20 @@ Options:
 
     public static CliOptions Parse(string[] args)
     {
+        if (args.Any(arg => arg is "-h" or "--help" or "/?"))
+        {
+            return new CliOptions { Command = CliCommand.Help };
+        }
+        if (args.Length == 1 &&
+            args[0].Equals("setup", StringComparison.OrdinalIgnoreCase))
+        {
+            return new CliOptions { Command = CliCommand.Setup };
+        }
+
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (arg is "-h" or "--help" or "/?")
-            {
-                return new CliOptions { ShowHelp = true };
-            }
-
             if (!arg.StartsWith("--", StringComparison.Ordinal))
             {
                 continue;

@@ -1,3 +1,5 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Html,
@@ -6,7 +8,8 @@ param(
     [string]$SlideSelector = ".slide",
     [string]$SvgSelector = "svg",
     [double]$Width = 13.333,
-    [double]$Height = 7.5
+    [double]$Height = 7.5,
+    [switch]$SkipBrowserInstall
 )
 
 Set-StrictMode -Version Latest
@@ -45,7 +48,9 @@ if (Test-Path -LiteralPath $outputPath -PathType Container) {
 }
 
 $initializer = Join-Path $PSScriptRoot "Initialize-Mermaid2Pptx.ps1"
-$environment = & $initializer -RepoRoot $RepoRoot
+$environment = & $initializer `
+    -RepoRoot $RepoRoot `
+    -SkipBrowserInstall:$SkipBrowserInstall
 if ($outputPath.Equals(
     $environment.RepoRoot,
     [StringComparison]::OrdinalIgnoreCase
@@ -67,10 +72,7 @@ $arguments = @(
 )
 
 $commandOutput = @(
-    & dotnet run `
-        --no-build `
-        --project $environment.QaProjectPath `
-        -- @arguments 2>&1
+    & $environment.QaCliPath @arguments 2>&1
 )
 $qaExitCode = $LASTEXITCODE
 $commandOutput | ForEach-Object { Write-Host $_ }

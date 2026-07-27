@@ -5,6 +5,10 @@ Pass `-RepoRoot` when Codex starts outside the Mermaid2Pptx clone; otherwise the
 scripts discover the repository from the current directory, the script
 location, or `MERMAID2PPTX_REPO`.
 
+The wrappers support Windows PowerShell 5.1 and PowerShell 7+. They restore,
+build, and prepare Playwright automatically, then invoke the built executables
+directly rather than using `dotnet run`.
+
 ```powershell
 $invoke = Join-Path $skillRoot "scripts/Invoke-Mermaid2Pptx.ps1"
 $qa = Join-Path $skillRoot "scripts/Invoke-Mermaid2PptxQa.ps1"
@@ -13,6 +17,26 @@ $qa = Join-Path $skillRoot "scripts/Invoke-Mermaid2PptxQa.ps1"
 The invocation script automatically restores when needed, builds incrementally,
 installs Playwright Chromium when needed, validates a temporary candidate, and
 then publishes the destination.
+
+## Install the direct CLI
+
+Pack and install the source repository as a .NET 8 tool when a reusable
+`mermaid2pptx` command is preferable to the wrapper:
+
+```powershell
+dotnet pack .\src\Mermaid2Pptx\Mermaid2Pptx.csproj `
+  --configuration Release `
+  --output .\out\packages
+dotnet tool install --global Mermaid2Pptx.Tool `
+  --add-source (Resolve-Path .\out\packages) `
+  --version 0.1.0
+mermaid2pptx setup
+```
+
+The install and `setup` commands are one-time preparation. Afterward, use
+`mermaid2pptx --mermaid`, `--mermaid-file`, `--mermaid-stdin`, `--html`, or
+insert mode directly. The installed CLI needs .NET 8 but does not need
+PowerShell.
 
 ## New native-shape diagram deck
 

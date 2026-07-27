@@ -7,6 +7,8 @@ Assert-True (Test-Path -LiteralPath $script) "initializer exists"
 
 $info = & $script -RepoRoot $repo -SkipBrowserInstall
 Assert-Equal ([IO.Path]::GetFullPath($repo)) $info.RepoRoot "explicit repo root"
+Assert-True (Test-Path -LiteralPath $info.CliPath -PathType Leaf) "core CLI path"
+Assert-True (Test-Path -LiteralPath $info.QaCliPath -PathType Leaf) "QA CLI path"
 
 $previousRepo = $env:MERMAID2PPTX_REPO
 Push-Location $env:TEMP
@@ -44,6 +46,9 @@ New-Item -ItemType Directory `
 New-Item -ItemType Directory `
     -Path (Join-Path $fakeRoot "src/Mermaid2Pptx/bin/Debug/net8.0") `
     -Force | Out-Null
+New-Item -ItemType Directory `
+    -Path (Join-Path $fakeRoot "src/Mermaid2Pptx.Qa/bin/Debug/net8.0") `
+    -Force | Out-Null
 $fakeDotnet = Join-Path $fakeRoot "fake-dotnet.cmd"
 $fakeLog = Join-Path $fakeRoot "dotnet.log"
 
@@ -60,6 +65,18 @@ try {
     Set-Content `
         -LiteralPath (Join-Path $fakeRoot "src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1") `
         -Value "exit 0"
+    $executableSuffix = if ($env:OS -eq "Windows_NT") {
+        ".exe"
+    }
+    else {
+        ""
+    }
+    Set-Content `
+        -LiteralPath (Join-Path $fakeRoot "src/Mermaid2Pptx/bin/Debug/net8.0/Mermaid2Pptx$executableSuffix") `
+        -Value "fake core CLI"
+    Set-Content `
+        -LiteralPath (Join-Path $fakeRoot "src/Mermaid2Pptx.Qa/bin/Debug/net8.0/Mermaid2Pptx.Qa$executableSuffix") `
+        -Value "fake QA CLI"
     Set-Content -LiteralPath $fakeDotnet -Value @(
         "@echo off",
         "echo %*>>`"%FAKE_DOTNET_LOG%`"",

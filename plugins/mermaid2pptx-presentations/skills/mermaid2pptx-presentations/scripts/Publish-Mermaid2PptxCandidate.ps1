@@ -1,3 +1,5 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Candidate,
@@ -43,7 +45,7 @@ function Invoke-AtomicReplacement {
     catch {
         if (-not (Test-Path -LiteralPath $Target -PathType Leaf) -and
             (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
-            [IO.File]::Move($backupPath, $Target, $false)
+            [IO.File]::Move($backupPath, $Target)
         }
         throw [InvalidOperationException]::new(
             "Failed to atomically replace existing output '$Target'.",
@@ -71,7 +73,7 @@ if (Test-Path -LiteralPath $destinationPath -PathType Leaf) {
 }
 else {
     try {
-        [IO.File]::Move($candidatePath, $destinationPath, $false)
+        [IO.File]::Move($candidatePath, $destinationPath)
     }
     catch [IO.IOException] {
         if ($Force -and

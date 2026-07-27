@@ -115,7 +115,8 @@ public sealed class MermaidSvgExtractor
 
             throw new InvalidOperationException(
                 "Unable to launch bundled Chromium or local Edge/Chrome channels. " +
-                "Install Playwright Chromium with `pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium`, " +
+                "Install Playwright Chromium with `mermaid2pptx setup` (installed CLI) or " +
+                "`pwsh src/Mermaid2Pptx/bin/Debug/net8.0/playwright.ps1 install chromium` (repository development), " +
                 "or install Microsoft Edge / Google Chrome. Details: " + string.Join(" | ", errors),
                 exception);
         }
