@@ -32,11 +32,11 @@ public sealed class PptxShape
     public IReadOnlyList<PptxPathCommand> PathCommands { get; init; } = [];
     public long PathWidth { get; init; }
     public long PathHeight { get; init; }
-    public SvgStyle Style { get; init; } = SvgStyle.Default;
+    public SvgStyle Style { get; set; } = SvgStyle.Default;
     public long LineWidthEmu { get; init; }
-    public string? Text { get; init; }
-    public string TextAlignment { get; init; } = "left";
-    public bool NoWrapText { get; init; }
+    public string? Text { get; set; }
+    public string TextAlignment { get; set; } = "left";
+    public bool NoWrapText { get; set; }
     public bool PreferNoFill { get; init; }
     public bool PreferNoLine { get; init; }
     public bool ArrowStart { get; set; }

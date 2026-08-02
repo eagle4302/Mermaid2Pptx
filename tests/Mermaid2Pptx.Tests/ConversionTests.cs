@@ -364,10 +364,11 @@ public sealed class ConversionTests
         Assert.Contains("<a:bodyPr wrap=\"none\"", slideXml);
         Assert.Contains("<a:noAutofit/>", slideXml);
         Assert.DoesNotContain("wrap=\"square\"", slideXml);
+        Assert.Contains("txBox=\"1\"", slideXml);
     }
 
     [Fact]
-    public void Node_shapes_expand_to_keep_text_inside_diagram_unit()
+    public void Single_node_label_merges_into_parent_shape_text_body()
     {
         var svg = Svg("""
 <g class="node" transform="translate(150,80)">
@@ -380,18 +381,90 @@ public sealed class ConversionTests
 </g>
 """);
 
+        var output = Path.Combine(Path.GetTempPath(), $"mermaid2pptx-merge-text-{Guid.NewGuid():N}.pptx");
         var scene = new SvgDocumentParser().Parse(svg);
         var slide = new SvgToPowerPointMapper().MapSvgToSlide(scene, 13.333, 7.5);
 
-        var nodeShape = Assert.Single(slide.Shapes, shape => shape.Kind == PptxShapeKind.Preset && shape.PresetGeometry == "rect");
-        var textShape = Assert.Single(slide.Shapes, shape => shape.Kind == PptxShapeKind.Text);
-        var originalMappedWidth = UnitConversion.CreateViewportMap(scene.ViewBox, 13.333, 7.5).MapLengthX(28);
+        var nodeShape = Assert.Single(slide.Shapes);
+        Assert.Equal(PptxShapeKind.Preset, nodeShape.Kind);
+        Assert.Equal("rect", nodeShape.PresetGeometry);
+        Assert.Equal("contains", nodeShape.Text);
+        Assert.DoesNotContain(slide.Shapes, shape => shape.Kind == PptxShapeKind.Text);
 
+        var originalMappedWidth = UnitConversion.CreateViewportMap(scene.ViewBox, 13.333, 7.5).MapLengthX(28);
         Assert.True(nodeShape.Cx > originalMappedWidth);
-        Assert.True(nodeShape.X <= textShape.X);
-        Assert.True(nodeShape.Y <= textShape.Y);
-        Assert.True(nodeShape.X + nodeShape.Cx >= textShape.X + textShape.Cx);
-        Assert.True(nodeShape.Y + nodeShape.Cy >= textShape.Y + textShape.Cy);
+
+        var deck = new PptxDeckModel { WidthInches = 13.333, HeightInches = 7.5 };
+        deck.Slides.Add(slide);
+        new DrawingMlWriter().Write(deck, output);
+
+        using var zip = ZipFile.OpenRead(output);
+        var slideXml = ReadZipEntry(zip, "ppt/slides/slide1.xml");
+        Assert.Contains("<p:txBody>", slideXml);
+        Assert.Contains(">contains</a:t>", slideXml);
+        Assert.Contains("""<a:srgbClr val="111111">""", slideXml);
+        Assert.Contains("""<a:srgbClr val="ECECFF">""", slideXml);
+        Assert.DoesNotContain("txBox=\"1\"", slideXml);
+
+        var masterXml = ReadZipEntry(zip, "ppt/slideMasters/slideMaster1.xml");
+        var themeXml = ReadZipEntry(zip, "ppt/theme/theme1.xml");
+        Assert.DoesNotContain("Microsoft JhengHei", masterXml);
+        Assert.DoesNotContain("Microsoft JhengHei", themeXml);
+        Assert.Contains("""typeface="Arial""", masterXml);
+        Assert.Contains("""typeface="Arial""", themeXml);
+    }
+
+    [Fact]
+    public void Multiple_labels_in_same_container_remain_separate_text_boxes()
+    {
+        var svg = Svg("""
+<g class="node" transform="translate(150,80)">
+  <rect x="-60" y="-40" width="120" height="80" fill="#ececff" stroke="#333333"/>
+  <foreignObject x="-50" y="-30" width="100" height="24">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="text-align: center; font-size: 14px; color: #111111;">
+      <span>Title</span>
+    </div>
+  </foreignObject>
+  <foreignObject x="-50" y="0" width="100" height="24">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="text-align: center; font-size: 14px; color: #111111;">
+      <span>Member</span>
+    </div>
+  </foreignObject>
+</g>
+""");
+
+        var scene = new SvgDocumentParser().Parse(svg);
+        var slide = new SvgToPowerPointMapper().MapSvgToSlide(scene, 13.333, 7.5);
+
+        var nodeShape = Assert.Single(slide.Shapes, shape => shape.Kind == PptxShapeKind.Preset);
+        Assert.True(string.IsNullOrEmpty(nodeShape.Text));
+        var textShapes = slide.Shapes.Where(shape => shape.Kind == PptxShapeKind.Text).ToArray();
+        Assert.Equal(2, textShapes.Length);
+        Assert.Contains(textShapes, shape => shape.Text == "Title");
+        Assert.Contains(textShapes, shape => shape.Text == "Member");
+    }
+
+    [Fact]
+    public void Font_family_fallback_writes_distinct_latin_and_east_asian_typefaces()
+    {
+        var svg = Svg("""
+<foreignObject x="10" y="20" width="180" height="40">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: Arial, 'Noto Sans TC', sans-serif; font-size: 16px; color: #111111;">
+    <span>Label</span>
+  </div>
+</foreignObject>
+""");
+        var output = Path.Combine(Path.GetTempPath(), $"mermaid2pptx-font-fallback-{Guid.NewGuid():N}.pptx");
+        var scene = new SvgDocumentParser().Parse(svg);
+        var slide = new SvgToPowerPointMapper().MapSvgToSlide(scene, 13.333, 7.5);
+        var deck = new PptxDeckModel { WidthInches = 13.333, HeightInches = 7.5 };
+        deck.Slides.Add(slide);
+        new DrawingMlWriter().Write(deck, output);
+
+        using var zip = ZipFile.OpenRead(output);
+        var slideXml = ReadZipEntry(zip, "ppt/slides/slide1.xml");
+        Assert.Contains("""<a:latin typeface="Arial"/>""", slideXml);
+        Assert.Contains("""<a:ea typeface="Noto Sans TC"/>""", slideXml);
     }
 
     [Fact]
@@ -514,7 +587,7 @@ public sealed class ConversionTests
         yield return ["polygon", """<polygon points="50,10 120,80 10,80" fill="#dcfce7" stroke="#166534"/>""", 1];
         yield return ["cubic-path", """<path d="M 10 100 C 40 10, 160 10, 190 100" fill="none" stroke="#991b1b" stroke-width="3"/>""", 1];
         yield return ["arc-path", """<path d="M 40 90 A 50 30 0 0 1 160 90" fill="none" stroke="#7c3aed" stroke-width="3"/>""", 1];
-        yield return ["mermaid-flowchart", MermaidFlowchartSvgBody, 5];
+        yield return ["mermaid-flowchart", MermaidFlowchartSvgBody, 4];
     }
 
     private const string MermaidFlowchartSvgBody = """

@@ -79,7 +79,7 @@ public sealed class SvgToPowerPointMapper
             }
         }
 
-        ExpandTextContainersToFitText(slide, viewport);
+        MergeOrExpandTextContainers(slide, viewport);
         return slide;
     }
 
@@ -411,11 +411,12 @@ public sealed class SvgToPowerPointMapper
         slide.Shapes.Add(shape);
     }
 
-    private static void ExpandTextContainersToFitText(PptxSlideModel slide, SvgViewportMap viewport)
+    private static void MergeOrExpandTextContainers(PptxSlideModel slide, SvgViewportMap viewport)
     {
         var paddingX = Math.Max(1, (long)Math.Round(Math.Abs(viewport.MapLengthX(4))));
         var paddingY = Math.Max(1, (long)Math.Round(Math.Abs(viewport.MapLengthY(3))));
 
+        var associations = new List<(int TextIndex, int ContainerIndex)>();
         for (var textIndex = 0; textIndex < slide.Shapes.Count; textIndex++)
         {
             var textShape = slide.Shapes[textIndex];
@@ -424,26 +425,121 @@ public sealed class SvgToPowerPointMapper
                 continue;
             }
 
-            if (!TryFindTextContainer(slide.Shapes, textIndex, textShape, out var containerIndex))
+            if (TryFindTextContainer(slide.Shapes, textIndex, textShape, out var containerIndex))
+            {
+                associations.Add((textIndex, containerIndex));
+            }
+        }
+
+        var textsByContainer = associations
+            .GroupBy(pair => pair.ContainerIndex)
+            .ToDictionary(group => group.Key, group => group.Select(pair => pair.TextIndex).ToList());
+
+        var mergeTextIndexes = new HashSet<int>();
+        foreach (var (containerIndex, textIndexes) in textsByContainer)
+        {
+            ExpandContainerToFitTexts(slide.Shapes[containerIndex], textIndexes.Select(index => slide.Shapes[index]), paddingX, paddingY);
+
+            if (textIndexes.Count != 1)
             {
                 continue;
             }
 
-            var container = slide.Shapes[containerIndex];
-            var required = Inflate(Bounds(textShape), paddingX, paddingY);
-            var current = Bounds(container);
-            if (Contains(current, required))
-            {
-                continue;
-            }
+            var textIndex = textIndexes[0];
+            MergeTextIntoContainer(slide.Shapes[containerIndex], slide.Shapes[textIndex]);
+            mergeTextIndexes.Add(textIndex);
+        }
 
-            var expanded = Union(current, required);
-            container.X = expanded.Left;
-            container.Y = expanded.Top;
-            container.Cx = Math.Max(1, expanded.Right - expanded.Left);
-            container.Cy = Math.Max(1, expanded.Bottom - expanded.Top);
+        if (mergeTextIndexes.Count == 0)
+        {
+            return;
+        }
+
+        for (var index = slide.Shapes.Count - 1; index >= 0; index--)
+        {
+            if (mergeTextIndexes.Contains(index))
+            {
+                slide.Shapes.RemoveAt(index);
+            }
+        }
+
+        for (var index = 0; index < slide.Shapes.Count; index++)
+        {
+            slide.Shapes[index].Id = index + 2;
         }
     }
+
+    private static void ExpandContainerToFitTexts(
+        PptxShape container,
+        IEnumerable<PptxShape> textShapes,
+        long paddingX,
+        long paddingY)
+    {
+        var current = Bounds(container);
+        var expanded = current;
+        var changed = false;
+        foreach (var textShape in textShapes)
+        {
+            var required = Inflate(Bounds(textShape), paddingX, paddingY);
+            if (Contains(expanded, required))
+            {
+                continue;
+            }
+
+            expanded = Union(expanded, required);
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        container.X = expanded.Left;
+        container.Y = expanded.Top;
+        container.Cx = Math.Max(1, expanded.Right - expanded.Left);
+        container.Cy = Math.Max(1, expanded.Bottom - expanded.Top);
+    }
+
+    private static void MergeTextIntoContainer(PptxShape container, PptxShape textShape)
+    {
+        container.Text = textShape.Text;
+        container.TextAlignment = textShape.TextAlignment;
+        container.NoWrapText = textShape.NoWrapText;
+        container.Style = container.Style with
+        {
+            Color = ResolveMergedTextColor(textShape.Style),
+            FontFamily = textShape.Style.FontFamily,
+            FontSize = textShape.Style.FontSize,
+            FontWeight = textShape.Style.FontWeight,
+            FontStyle = textShape.Style.FontStyle,
+            TextAlign = textShape.Style.TextAlign,
+            TextAnchor = textShape.Style.TextAnchor
+        };
+    }
+
+    private static string? ResolveMergedTextColor(SvgStyle textStyle)
+    {
+        // foreignObject / CSS labels usually set color; SVG <text> paints with fill.
+        if (!IsNonePaint(textStyle.Color) &&
+            !string.Equals(textStyle.Color, "black", StringComparison.OrdinalIgnoreCase))
+        {
+            return textStyle.Color;
+        }
+
+        if (!IsNonePaint(textStyle.Fill) &&
+            !string.Equals(textStyle.Fill, "black", StringComparison.OrdinalIgnoreCase))
+        {
+            return textStyle.Fill;
+        }
+
+        return textStyle.Color ?? textStyle.Fill ?? "black";
+    }
+
+    private static bool IsNonePaint(string? paint) =>
+        string.IsNullOrWhiteSpace(paint) ||
+        paint.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+        paint.Equals("transparent", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryFindTextContainer(
         IReadOnlyList<PptxShape> shapes,

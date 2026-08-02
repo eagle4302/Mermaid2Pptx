@@ -153,8 +153,9 @@ public sealed partial class DrawingMlWriter
             return ConnectorXml(shape);
         }
 
+        var hasText = !string.IsNullOrEmpty(shape.Text);
         var txBox = shape.Kind == PptxShapeKind.Text ? " txBox=\"1\"" : string.Empty;
-        var textBody = shape.Kind == PptxShapeKind.Text ? TextBodyXml(shape) : string.Empty;
+        var textBody = hasText ? TextBodyXml(shape) : string.Empty;
         return $$"""
       <p:sp>
         <p:nvSpPr>
@@ -319,17 +320,21 @@ public sealed partial class DrawingMlWriter
     {
         var fontSizePt = Math.Max(1, shape.Style.FontSize * 72d / 96d);
         var fontSize = (int)Math.Round(fontSizePt * 100);
-        var fontFamily = Esc((shape.Style.FontFamily ?? "Arial").Split(',')[0].Trim(' ', '\'', '"'));
+        var (latinFont, eastAsianFont) = ResolveTypefaces(shape.Style.FontFamily);
         var bold = IsBold(shape.Style.FontWeight) ? " b=\"1\"" : string.Empty;
         var italic = shape.Style.FontStyle?.Equals("italic", StringComparison.OrdinalIgnoreCase) == true ? " i=\"1\"" : string.Empty;
+        // Prefer explicit text color. For standalone text boxes, SVG <text> may paint via fill.
+        // For shapes with merged labels, Color was set from the label and must not fall back to shape fill.
         var fontPaint = !IsNone(shape.Style.Color)
             ? shape.Style.Color
-            : !IsNone(shape.Style.Fill)
+            : shape.Kind == PptxShapeKind.Text && !IsNone(shape.Style.Fill)
                 ? shape.Style.Fill
                 : "000000";
         var fontColor = ResolvePaint(fontPaint, shape.Style) ?? new SvgColor(0, 0, 0, 1);
-        var fill = SolidFillXml(fontColor, shape.Style.Opacity * shape.Style.FillOpacity);
+        var fill = SolidFillXml(fontColor, shape.Style.Opacity);
 
+        var isTextBox = shape.Kind == PptxShapeKind.Text;
+        var inset = isTextBox ? 0 : 45720; // 0.05" padding for shape-embedded text
         var paragraphs = string.Concat((shape.Text ?? string.Empty)
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Split('\n')
@@ -339,9 +344,9 @@ public sealed partial class DrawingMlWriter
             <a:r>
               <a:rPr lang="en-US" sz="{{fontSize}}"{{bold}}{{italic}}>
                 {{fill}}
-                <a:latin typeface="{{fontFamily}}"/>
-                <a:ea typeface="{{fontFamily}}"/>
-                <a:cs typeface="{{fontFamily}}"/>
+                <a:latin typeface="{{Esc(latinFont)}}"/>
+                <a:ea typeface="{{Esc(eastAsianFont)}}"/>
+                <a:cs typeface="{{Esc(latinFont)}}"/>
               </a:rPr>
               <a:t>{{Esc(line)}}</a:t>
             </a:r>
@@ -351,13 +356,51 @@ public sealed partial class DrawingMlWriter
 
         return $$"""
         <p:txBody>
-          <a:bodyPr wrap="{{(shape.NoWrapText ? "none" : "square")}}" rtlCol="0" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr">
+          <a:bodyPr wrap="{{(shape.NoWrapText ? "none" : "square")}}" rtlCol="0" lIns="{{inset}}" tIns="{{inset}}" rIns="{{inset}}" bIns="{{inset}}" anchor="ctr">
             <a:noAutofit/>
           </a:bodyPr>
           <a:lstStyle/>
           {{paragraphs}}
         </p:txBody>
 """;
+    }
+
+    private static (string Latin, string EastAsian) ResolveTypefaces(string? fontFamily)
+    {
+        var families = (fontFamily ?? "Arial")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(family => family.Trim('\'', '"', ' '))
+            .Where(family => family.Length > 0)
+            .ToArray();
+        if (families.Length == 0)
+        {
+            return ("Arial", "Arial");
+        }
+
+        var latin = families.FirstOrDefault(family => !LooksLikeEastAsianFont(family)) ?? families[0];
+        var eastAsian = families.FirstOrDefault(LooksLikeEastAsianFont) ?? latin;
+        return (latin, eastAsian);
+    }
+
+    private static bool LooksLikeEastAsianFont(string family)
+    {
+        var normalized = family.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return normalized.Contains("JhengHei", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("YaHei", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("SimSun", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("SimHei", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("PingFang", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("Hiragino", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("YuGothic", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("Malgun", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("NotoSansCJK", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("NotoSansTC", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("NotoSansSC", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("NotoSansJP", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("NotoSansKR", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("SourceHan", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("WenQuanYi", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("AppleSDGothic", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string SolidFillXml(SvgColor color, double opacity)
@@ -454,9 +497,9 @@ public sealed partial class DrawingMlWriter
       <a:lvl1pPr algn="l">
         <a:defRPr sz="3200" kern="1200">
           <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
-          <a:latin typeface="Microsoft JhengHei"/>
-          <a:ea typeface="Microsoft JhengHei"/>
-          <a:cs typeface="Microsoft JhengHei"/>
+          <a:latin typeface="Arial"/>
+          <a:ea typeface="Arial"/>
+          <a:cs typeface="Arial"/>
         </a:defRPr>
       </a:lvl1pPr>
     </p:titleStyle>
@@ -464,9 +507,9 @@ public sealed partial class DrawingMlWriter
       <a:lvl1pPr marL="0" indent="0" algn="l">
         <a:defRPr sz="1800" kern="1200">
           <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
-          <a:latin typeface="Microsoft JhengHei"/>
-          <a:ea typeface="Microsoft JhengHei"/>
-          <a:cs typeface="Microsoft JhengHei"/>
+          <a:latin typeface="Arial"/>
+          <a:ea typeface="Arial"/>
+          <a:cs typeface="Arial"/>
         </a:defRPr>
       </a:lvl1pPr>
     </p:bodyStyle>
@@ -474,9 +517,9 @@ public sealed partial class DrawingMlWriter
       <a:lvl1pPr marL="0" indent="0" algn="l">
         <a:defRPr sz="1800" kern="1200">
           <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
-          <a:latin typeface="Microsoft JhengHei"/>
-          <a:ea typeface="Microsoft JhengHei"/>
-          <a:cs typeface="Microsoft JhengHei"/>
+          <a:latin typeface="Arial"/>
+          <a:ea typeface="Arial"/>
+          <a:cs typeface="Arial"/>
         </a:defRPr>
       </a:lvl1pPr>
     </p:otherStyle>
@@ -504,8 +547,8 @@ public sealed partial class DrawingMlWriter
       <a:folHlink><a:srgbClr val="7C3AED"/></a:folHlink>
     </a:clrScheme>
     <a:fontScheme name="Mermaid2Pptx">
-      <a:majorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
-      <a:minorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+      <a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:majorFont>
+      <a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Arial"/><a:cs typeface="Arial"/></a:minorFont>
     </a:fontScheme>
     <a:fmtScheme name="Mermaid2Pptx">
       <a:fillStyleLst>
