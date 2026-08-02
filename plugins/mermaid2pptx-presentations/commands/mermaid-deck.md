@@ -12,6 +12,10 @@ audience and communication goal, the requested final `.pptx` path, whether this
 is a new deck or an existing template, the Mermaid source and target slide for
 each diagram, and the acceptance criteria.
 
+Default diagram acceptance: single-label node text must live in the parent
+shape `p:txBody`, and standalone master/theme fonts must stay cross-platform.
+See the skill's `references/native-shape-invariants.md`.
+
 Build the narrative and ordinary slides with the host presentation skill
 (`anthropic-skills:pptx` on Claude Code), then insert every diagram as editable
 native DrawingML with the skill's `scripts/Invoke-Mermaid2Pptx.ps1`. Keep any

@@ -23,6 +23,52 @@ try {
     $standaloneResult = @(& $audit -Pptx $standalone -Standalone)
     Assert-Equal 1 $standaloneResult.Count "standalone audit result count"
     Assert-True ($standaloneResult[0].ShapeCount -gt 0) "standalone native shape count"
+    Assert-True (
+        $standaloneResult[0].ShapeEmbeddedTextCount -gt 0
+    ) "standalone embeds node text in shapes"
+    Assert-True (
+        $standaloneResult[0].ShapeEmbeddedTextCount -ge 2
+    ) "standalone flowchart nodes own txBody text"
+
+    $fontTampered = Join-Path $work "font-tampered.pptx"
+    Copy-Item -LiteralPath $standalone -Destination $fontTampered
+    $fontArchive = [IO.Compression.ZipFile]::Open(
+        $fontTampered,
+        [IO.Compression.ZipArchiveMode]::Update
+    )
+    try {
+        $masterEntry = $fontArchive.GetEntry("ppt/slideMasters/slideMaster1.xml")
+        Assert-True ($null -ne $masterEntry) "slide master exists for font tamper"
+        $masterText = $null
+        $readerStream = $masterEntry.Open()
+        $reader = [IO.StreamReader]::new($readerStream)
+        try {
+            $masterText = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+            $readerStream.Dispose()
+        }
+        $masterEntry.Delete()
+        $newEntry = $fontArchive.CreateEntry("ppt/slideMasters/slideMaster1.xml")
+        $writerStream = $newEntry.Open()
+        $writer = [IO.StreamWriter]::new($writerStream)
+        try {
+            $writer.Write(
+                ($masterText -replace 'typeface="Arial"', 'typeface="Microsoft JhengHei"')
+            )
+        }
+        finally {
+            $writer.Dispose()
+            $writerStream.Dispose()
+        }
+    }
+    finally {
+        $fontArchive.Dispose()
+    }
+    Assert-Throws {
+        & $audit -Pptx $fontTampered -Standalone
+    } "Windows-only master/theme fonts"
 
     & dotnet run --no-build --project $project -- `
         --mermaid "graph LR; C-->D" `

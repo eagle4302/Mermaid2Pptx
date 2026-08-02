@@ -31,6 +31,14 @@ Before producing files, establish:
 - target slide for every diagram;
 - acceptance criteria, including whether full visual/XML QA is required.
 
+Default Mermaid diagram acceptance always includes the native-shape invariants
+in [native-shape invariants](references/native-shape-invariants.md), especially:
+
+- single-label node text lives in the parent shape `p:txBody` (not a sibling
+  `txBox`);
+- standalone master/theme fonts stay cross-platform (no Windows-only faces such
+  as `Microsoft JhengHei`).
+
 If the request already supplies these facts, proceed without another
 confirmation. Preserve every source deck. Reserve the requested final path for
 the last successful operation.
@@ -78,6 +86,10 @@ DrawingML fragments.
 ## Common mistakes
 
 - Do not rasterize Mermaid diagrams or insert SVG/PNG screenshots as output.
+- Do not leave single-label node text as a separate `txBox` overlay; merge it
+  into the node shape text body.
+- Do not ship Windows-only master/theme fonts (`Microsoft JhengHei` and similar)
+  in standalone Mermaid decks.
 - Do not run manual setup before the initializer; let the wrapper prepare it.
 - Do not require PowerShell 7 on Windows; Windows PowerShell 5.1 is supported.
 - Do not overwrite a template or reuse the final path for intermediate decks.
