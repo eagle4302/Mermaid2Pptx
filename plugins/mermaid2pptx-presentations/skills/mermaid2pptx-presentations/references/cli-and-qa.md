@@ -92,7 +92,9 @@ atomic rollback-backed operation.
 
 Fast audit is mandatory and automatic in every invocation. It rejects missing
 native shapes, Mermaid syntax-error slides, diagram-added pictures, and
-diagram-added image relationships.
+diagram-added image relationships. For standalone decks it also rejects
+Windows-only master/theme fonts and flowchart-style 1:1 `txBox` overlays that
+leave labeled preset nodes without shape-owned `p:txBody`.
 
 Full QA accepts rendered Mermaid HTML and produces `report.json`, reference and
 converted previews, diffs, raw slide XML, and XML audit JSON:

@@ -130,7 +130,9 @@ Important model choices:
 - `line` maps to `PptxShapeKind.Line`, which writes as a native connector
   (`p:cxnSp`).
 - `polyline`, `polygon`, and complex paths map to custom geometry.
-- Text maps to text-box shapes with no fill and no line.
+- Text: single node labels merge into the parent shape's DrawingML text body;
+  edge labels and multi-label containers stay as separate text-box shapes with
+  no fill and no line.
 - Region mapping uses `ExtractedSvg` layout data when available; otherwise it
   maps the SVG viewBox into the slide viewport with a margin.
 

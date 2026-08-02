@@ -53,6 +53,105 @@ function Get-SlideRelationshipPart {
     return "$directory/_rels/$fileName.rels"
 }
 
+function Get-SlideTextMetrics {
+    param([Parameter(Mandatory)][xml]$SlideXml)
+
+    $shapeEmbeddedTextCount = 0
+    $textBoxCount = 0
+    $presetNodeShapeCount = 0
+    $presetNodeGeometries = @(
+        "rect",
+        "roundRect",
+        "ellipse",
+        "diamond",
+        "hexagon",
+        "octagon",
+        "pentagon",
+        "triangle",
+        "trapezoid",
+        "can"
+    )
+
+    foreach ($shape in @($SlideXml.SelectNodes("//*[local-name()='sp']"))) {
+        $cNvSpPr = $shape.SelectSingleNode(".//*[local-name()='cNvSpPr']")
+        $isTextBox = $false
+        if ($null -ne $cNvSpPr) {
+            $txBoxValue = $cNvSpPr.GetAttribute("txBox")
+            $isTextBox = $txBoxValue -eq "1"
+        }
+
+        $textNodes = @(
+            $shape.SelectNodes(".//*[local-name()='txBody']//*[local-name()='t']") |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_.InnerText) }
+        )
+        $hasText = $textNodes.Count -gt 0
+
+        if ($isTextBox) {
+            if ($hasText) {
+                $textBoxCount++
+            }
+            continue
+        }
+
+        if ($hasText) {
+            $shapeEmbeddedTextCount++
+        }
+
+        $preset = $shape.SelectSingleNode(".//*[local-name()='prstGeom']")
+        if ($null -ne $preset) {
+            $geometry = $preset.GetAttribute("prst")
+            if ($presetNodeGeometries -contains $geometry) {
+                $presetNodeShapeCount++
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        ShapeEmbeddedTextCount = $shapeEmbeddedTextCount
+        TextBoxCount = $textBoxCount
+        PresetNodeShapeCount = $presetNodeShapeCount
+    }
+}
+
+function Get-PackageFontFacts {
+    param([Parameter(Mandatory)][IO.Compression.ZipArchive]$Archive)
+
+    $windowsOnlyFonts = @(
+        "Microsoft JhengHei",
+        "Microsoft YaHei",
+        "DengXian"
+    )
+    $parts = @(
+        $Archive.Entries |
+            Where-Object {
+                $_.FullName -like "ppt/slideMasters/*.xml" -or
+                $_.FullName -like "ppt/slideMasters/theme/*.xml" -or
+                $_.FullName -like "ppt/theme/*.xml"
+            } |
+            ForEach-Object { $_.FullName }
+    )
+
+    $matchedWindowsOnlyFonts = @()
+    $hasArialTypeface = $false
+    foreach ($part in $parts) {
+        $xmlText = Read-ZipEntryText -Archive $Archive -EntryName $part
+        foreach ($font in $windowsOnlyFonts) {
+            if ($xmlText.Contains($font)) {
+                $matchedWindowsOnlyFonts += $font
+            }
+        }
+        if ($xmlText -match 'typeface\s*=\s*"Arial"') {
+            $hasArialTypeface = $true
+        }
+    }
+
+    return [PSCustomObject]@{
+        Parts = $parts
+        WindowsOnlyFonts = @($matchedWindowsOnlyFonts | Sort-Object -Unique)
+        HasArialTypeface = $hasArialTypeface
+    }
+}
+
 function Get-PptxFacts {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -138,6 +237,7 @@ function Get-PptxFacts {
                     "//*[local-name()='pic']"
                 )
             )
+            $textMetrics = Get-SlideTextMetrics -SlideXml $slideXml
             $slides += [PSCustomObject]@{
                 Number = $slideNumber
                 Part = $slidePart
@@ -159,6 +259,9 @@ function Get-PptxFacts {
                         $_.InnerText
                     }
                 )
+                ShapeEmbeddedTextCount = $textMetrics.ShapeEmbeddedTextCount
+                TextBoxCount = $textMetrics.TextBoxCount
+                PresetNodeShapeCount = $textMetrics.PresetNodeShapeCount
             }
         }
 
@@ -174,11 +277,14 @@ function Get-PptxFacts {
                 $_.FullName
             }
         )
+        $fontFacts = Get-PackageFontFacts -Archive $archive
 
         return [PSCustomObject]@{
             Path = $fullPath
             Slides = $slides
             MediaEntries = $mediaEntries
+            WindowsOnlyFonts = $fontFacts.WindowsOnlyFonts
+            HasArialTypeface = $fontFacts.HasArialTypeface
         }
     }
     finally {
@@ -200,6 +306,12 @@ if ($Standalone) {
     }
     if ($candidate.MediaEntries.Count -gt 0) {
         throw "Standalone Mermaid deck contains media parts: $($candidate.MediaEntries -join ', ')"
+    }
+    if ($candidate.WindowsOnlyFonts.Count -gt 0) {
+        throw "Standalone Mermaid deck uses Windows-only master/theme fonts: $($candidate.WindowsOnlyFonts -join ', ')"
+    }
+    if (-not $candidate.HasArialTypeface) {
+        throw "Standalone Mermaid deck master/theme is missing portable Arial typefaces."
     }
     $baseline = $null
 }
@@ -232,6 +344,23 @@ foreach ($slideNumber in $targetSlides) {
     if ($Standalone) {
         if ($candidateSlide.PictureCount -ne 0) {
             throw "Standalone Mermaid slide $slideNumber contains p:pic elements."
+        }
+        $hasVisibleText = @(
+            $candidateSlide.TextValues | Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_)
+            }
+        ).Count -gt 0
+        # Flowchart-style 1:1 overlays: each preset node has a sibling txBox and
+        # no shape-owned txBody. Multi-label containers (class/ER) usually have
+        # more text boxes than node shapes and remain allowed.
+        if (
+            $hasVisibleText -and
+            $candidateSlide.PresetNodeShapeCount -gt 0 -and
+            $candidateSlide.ShapeEmbeddedTextCount -eq 0 -and
+            $candidateSlide.TextBoxCount -gt 0 -and
+            $candidateSlide.TextBoxCount -le $candidateSlide.PresetNodeShapeCount
+        ) {
+            throw "Standalone Mermaid slide $slideNumber keeps node labels in txBox overlays instead of shape txBody."
         }
         $baselineSlide = $null
     }
@@ -267,6 +396,9 @@ foreach ($slideNumber in $targetSlides) {
         ShapeCount = $candidateSlide.ShapeCount
         PictureCount = $candidateSlide.PictureCount
         ImageRelationshipCount = $candidateSlide.ImageRelationshipCount
+        ShapeEmbeddedTextCount = $candidateSlide.ShapeEmbeddedTextCount
+        TextBoxCount = $candidateSlide.TextBoxCount
+        PresetNodeShapeCount = $candidateSlide.PresetNodeShapeCount
         BaselineShapeCount = if ($null -eq $baselineSlide) {
             $null
         }
