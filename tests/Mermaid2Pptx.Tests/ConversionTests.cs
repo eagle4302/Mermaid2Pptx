@@ -407,7 +407,7 @@ public sealed class ConversionTests
         Assert.DoesNotContain("txBox=\"1\"", slideXml);
 
         var masterXml = ReadZipEntry(zip, "ppt/slideMasters/slideMaster1.xml");
-        var themeXml = ReadZipEntry(zip, "ppt/theme/theme1.xml");
+        var themeXml = ReadZipEntry(zip, "ppt/slideMasters/theme/theme1.xml");
         Assert.DoesNotContain("Microsoft JhengHei", masterXml);
         Assert.DoesNotContain("Microsoft JhengHei", themeXml);
         Assert.Contains("""typeface="Arial""", masterXml);
