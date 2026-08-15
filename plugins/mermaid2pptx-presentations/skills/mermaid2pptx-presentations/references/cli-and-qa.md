@@ -55,6 +55,8 @@ Get-Content ".\diagram.mmd" -Raw |
   & $invoke -MermaidStdin -Out ".\diagram.pptx"
 & $invoke -Html ".\rendered.html" -Out ".\diagram.pptx"
 & $invoke -DrawIoFile ".\diagram.drawio" -Out ".\diagram.pptx"
+& $invoke -MermaidFile ".\diagram.mmd" -Out ".\diagram.drawio"
+& $invoke -DrawIoFile ".\diagram.drawio" -Out ".\diagram.mmd"
 ```
 
 Pass `-SlideSelector`, `-SvgSelector`, `-Width`, or `-Height` when the defaults

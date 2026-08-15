@@ -71,6 +71,8 @@ mermaid2pptx --mermaid-file diagram.mmd --out out/diagram.pptx
 Get-Content diagram.mmd -Raw | mermaid2pptx --mermaid-stdin --out out/diagram.pptx
 mermaid2pptx --drawio-file samples/flowchart.drawio --out out/flowchart.pptx
 Get-Content samples/flowchart.drawio -Raw | mermaid2pptx --drawio-stdin --out out/flowchart.pptx
+mermaid2pptx --mermaid-file diagram.mmd --out out/diagram.drawio
+mermaid2pptx --drawio-file samples/flowchart.drawio --out out/flowchart.mmd
 ```
 
 For AI agents, the recommended exchange format is still `.pptx`, not raw
@@ -86,6 +88,10 @@ CLI source inputs are mutually exclusive: use exactly one of `--html`,
 or `--drawio-stdin`, unless insert mode uses an existing native-shape source
 deck via `--source-pptx`. Draw.io files may be uncompressed `mxfile` XML or
 compressed diagrams.net pages; each `<diagram>` page becomes one PPTX slide.
+
+Flowchart interop (no Playwright): `--out` extension or `--to` selects the
+format. Mermaid `flowchart`/`graph` converts to draw.io XML and back. Sequence,
+class, ER, and other Mermaid diagram types still convert to PPTX only.
 
 Seven-diagram verification sample:
 
@@ -173,7 +179,7 @@ can also start the server manually:
 dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
 ```
 
-Open `http://127.0.0.1:5088`, paste Mermaid code or draw.io XML, and download the generated native-shape PPTX.
+Open `http://127.0.0.1:5088`, paste Mermaid code or draw.io XML, and download PPTX, draw.io, or Mermaid.
 
 ## Visual QA
 

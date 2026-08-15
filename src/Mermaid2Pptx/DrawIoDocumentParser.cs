@@ -45,6 +45,31 @@ public sealed class DrawIoDocumentParser
         return [ParseGraphModel(model)];
     }
 
+    public IReadOnlyList<FlowchartGraph> ParseFlowcharts(string markup)
+    {
+        if (string.IsNullOrWhiteSpace(markup))
+        {
+            throw new ArgumentException("Draw.io markup is required.", nameof(markup));
+        }
+
+        var document = ParseXmlDocument(markup);
+        var diagrams = document.Descendants()
+            .Where(element => LocalName(element) == "diagram")
+            .ToList();
+        if (diagrams.Count > 0)
+        {
+            return diagrams
+                .Select((diagram, index) => CellsToGraph(
+                    ReadDiagramModel(diagram),
+                    Attr(diagram, "name") ?? $"Page-{index + 1}"))
+                .ToArray();
+        }
+
+        var model = document.Descendants().FirstOrDefault(element => LocalName(element) == "mxGraphModel")
+            ?? throw new InvalidOperationException("No mxGraphModel was found in the draw.io document.");
+        return [CellsToGraph(model, "Page-1")];
+    }
+
     private static XDocument ParseXmlDocument(string markup)
     {
         var trimmed = markup.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
@@ -58,27 +83,38 @@ public sealed class DrawIoDocumentParser
         }
     }
 
-    private SvgScene ParseDiagramElement(XElement diagram)
+    private XElement ReadDiagramModel(XElement diagram)
     {
         var model = diagram.Elements().FirstOrDefault(element => LocalName(element) == "mxGraphModel");
         if (model is not null)
         {
-            return ParseGraphModel(model);
+            return model;
         }
 
         var compressed = diagram.Value.Trim();
         if (string.IsNullOrWhiteSpace(compressed))
         {
-            var empty = EmptyScene();
-            empty.Warnings.Add("Draw.io diagram page is empty.");
-            return empty;
+            throw new InvalidOperationException("Draw.io diagram page is empty.");
         }
 
         var xml = DecompressDiagram(compressed);
         var nested = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
-        var nestedModel = nested.Descendants().FirstOrDefault(element => LocalName(element) == "mxGraphModel")
+        return nested.Descendants().FirstOrDefault(element => LocalName(element) == "mxGraphModel")
             ?? throw new InvalidOperationException("Decompressed draw.io diagram did not contain mxGraphModel.");
-        return ParseGraphModel(nestedModel);
+    }
+
+    private SvgScene ParseDiagramElement(XElement diagram)
+    {
+        try
+        {
+            return ParseGraphModel(ReadDiagramModel(diagram));
+        }
+        catch (InvalidOperationException exception) when (exception.Message.Contains("empty", StringComparison.Ordinal))
+        {
+            var empty = EmptyScene();
+            empty.Warnings.Add("Draw.io diagram page is empty.");
+            return empty;
+        }
     }
 
     private SvgScene ParseGraphModel(XElement model)
@@ -119,6 +155,191 @@ public sealed class DrawIoDocumentParser
         fitted.Warnings.AddRange(scene.Warnings);
         return fitted;
     }
+
+    private static FlowchartGraph CellsToGraph(XElement model, string title)
+    {
+        var graph = new FlowchartGraph { Title = title };
+        var cells = ReadCells(model);
+        var lookup = cells
+            .Where(cell => !string.IsNullOrWhiteSpace(cell.Id))
+            .GroupBy(cell => cell.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        var usedIds = new HashSet<string>(StringComparer.Ordinal);
+        var idMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var cell in cells)
+        {
+            if (!cell.Visible || !cell.Vertex || IsGroup(cell) || IsTextOnly(cell) || IsSwimlane(cell))
+            {
+                continue;
+            }
+
+            if (lookup.TryGetValue(cell.ParentId, out var parent) && parent.Edge)
+            {
+                continue;
+            }
+
+            var mermaidId = UniqueMermaidId(cell.Id, usedIds);
+            idMap[cell.Id] = mermaidId;
+            var bounds = new SvgRect(cell.X, cell.Y, Math.Max(1, cell.Width), Math.Max(1, cell.Height));
+            var (preset, warning) = ResolvePreset(cell.Style, bounds);
+            if (warning is not null)
+            {
+                graph.Warnings.Add(warning);
+            }
+
+            var label = PlainText(cell.Value);
+            graph.Nodes.Add(new FlowchartNode
+            {
+                Id = mermaidId,
+                Label = string.IsNullOrWhiteSpace(label) ? mermaidId : label,
+                Kind = KindFromPreset(preset, bounds),
+                Fill = Color(cell.Style, "fillColor", null),
+                Stroke = Color(cell.Style, "strokeColor", null),
+                X = cell.X,
+                Y = cell.Y,
+                Width = Math.Max(0, cell.Width),
+                Height = Math.Max(0, cell.Height)
+            });
+        }
+
+        var edgeLabels = cells
+            .Where(cell => cell.Vertex && lookup.TryGetValue(cell.ParentId, out var parent) && parent.Edge)
+            .GroupBy(cell => cell.ParentId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => string.Join(' ', group.Select(cell => PlainText(cell.Value)).Where(text => text.Length > 0)),
+                StringComparer.Ordinal);
+
+        foreach (var cell in cells)
+        {
+            if (!cell.Visible || !cell.Edge ||
+                string.IsNullOrWhiteSpace(cell.SourceId) ||
+                string.IsNullOrWhiteSpace(cell.TargetId) ||
+                !idMap.TryGetValue(cell.SourceId, out var sourceId) ||
+                !idMap.TryGetValue(cell.TargetId, out var targetId))
+            {
+                continue;
+            }
+
+            var label = PlainText(cell.Value);
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                edgeLabels.TryGetValue(cell.Id, out label);
+            }
+
+            graph.Edges.Add(new FlowchartEdge
+            {
+                SourceId = sourceId,
+                TargetId = targetId,
+                Label = label ?? string.Empty,
+                Dashed = IsTrue(cell.Style, "dashed"),
+                Arrow = !cell.Style.TryGetValue("endArrow", out var endArrow) ||
+                        ArrowValue(endArrow) is not null
+            });
+        }
+
+        graph.Direction = InferDirection(graph);
+        if (graph.Nodes.Count == 0)
+        {
+            graph.Warnings.Add("Draw.io page has no flowchart nodes.");
+        }
+
+        return graph;
+    }
+
+    private static string InferDirection(FlowchartGraph graph)
+    {
+        if (graph.Edges.Count == 0)
+        {
+            return "TD";
+        }
+
+        var lookup = graph.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        var dx = 0d;
+        var dy = 0d;
+        var count = 0;
+        foreach (var edge in graph.Edges)
+        {
+            if (!lookup.TryGetValue(edge.SourceId, out var source) ||
+                !lookup.TryGetValue(edge.TargetId, out var target))
+            {
+                continue;
+            }
+
+            dx += (target.X + target.Width / 2) - (source.X + source.Width / 2);
+            dy += (target.Y + target.Height / 2) - (source.Y + source.Height / 2);
+            count++;
+        }
+
+        if (count == 0)
+        {
+            return "TD";
+        }
+
+        dx /= count;
+        dy /= count;
+        if (Math.Abs(dx) > Math.Abs(dy))
+        {
+            return dx >= 0 ? "LR" : "RL";
+        }
+
+        return dy >= 0 ? "TD" : "BT";
+    }
+
+    private static FlowchartNodeKind KindFromPreset(string preset, SvgRect bounds)
+    {
+        return preset switch
+        {
+            "diamond" or "flowChartDecision" => FlowchartNodeKind.Diamond,
+            "roundRect" or "flowChartAlternateProcess" => FlowchartNodeKind.Rounded,
+            "flowChartTerminator" => FlowchartNodeKind.Stadium,
+            "ellipse" => bounds.Width > bounds.Height * 1.25
+                ? FlowchartNodeKind.Stadium
+                : FlowchartNodeKind.Circle,
+            "hexagon" or "flowChartPreparation" => FlowchartNodeKind.Hexagon,
+            "parallelogram" or "flowChartInputOutput" => FlowchartNodeKind.Parallelogram,
+            "can" => FlowchartNodeKind.Cylinder,
+            "flowChartPredefinedProcess" => FlowchartNodeKind.Subroutine,
+            _ => FlowchartNodeKind.Rectangle
+        };
+    }
+
+    private static string UniqueMermaidId(string raw, HashSet<string> used)
+    {
+        var builder = new StringBuilder();
+        foreach (var ch in raw)
+        {
+            builder.Append(char.IsLetterOrDigit(ch) || ch is '_' ? ch : '_');
+        }
+
+        var cleaned = builder.ToString().Trim('_');
+        if (cleaned.Length == 0 || char.IsDigit(cleaned[0]) || IsReservedMermaidId(cleaned))
+        {
+            cleaned = "n_" + cleaned;
+        }
+
+        var candidate = cleaned;
+        var suffix = 2;
+        while (!used.Add(candidate))
+        {
+            candidate = cleaned + "_" + suffix.ToString(CultureInfo.InvariantCulture);
+            suffix++;
+        }
+
+        return candidate;
+    }
+
+    private static bool IsReservedMermaidId(string id) =>
+        id.Equals("end", StringComparison.OrdinalIgnoreCase) ||
+        id.Equals("subgraph", StringComparison.OrdinalIgnoreCase) ||
+        id.Equals("graph", StringComparison.OrdinalIgnoreCase) ||
+        id.Equals("flowchart", StringComparison.OrdinalIgnoreCase) ||
+        id.Equals("direction", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSwimlane(DrawIoCell cell) =>
+        cell.Style.TryGetValue("shape", out var shape) &&
+        shape.Equals("swimlane", StringComparison.OrdinalIgnoreCase);
 
     private static List<DrawIoCell> ReadCells(XElement model)
     {
@@ -629,7 +850,7 @@ public sealed class DrawIoDocumentParser
             ? pattern.Replace(' ', ',')
             : "8,8";
 
-    private static string? Color(IReadOnlyDictionary<string, string> style, string key, string fallback)
+    private static string? Color(IReadOnlyDictionary<string, string> style, string key, string? fallback)
     {
         if (!style.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
         {

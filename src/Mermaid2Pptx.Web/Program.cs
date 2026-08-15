@@ -11,7 +11,8 @@ app.MapPost("/convert", async (HttpRequest request, MermaidPptxConverter convert
 {
     var form = await request.ReadFormAsync(cancellationToken);
     var code = form["code"].ToString();
-    var fileName = SanitizeFileName(form["fileName"].ToString());
+    var format = form["format"].ToString().Trim().ToLowerInvariant();
+    var fileName = SanitizeFileName(form["fileName"].ToString(), format);
 
     if (string.IsNullOrWhiteSpace(code))
     {
@@ -21,6 +22,13 @@ app.MapPost("/convert", async (HttpRequest request, MermaidPptxConverter convert
     var outputDirectory = Path.Combine(app.Environment.ContentRootPath, "out");
     Directory.CreateDirectory(outputDirectory);
     var outputPath = Path.Combine(outputDirectory, fileName);
+
+    if (format is "drawio" or "mermaid")
+    {
+        var text = ConvertDiagramText(code, format);
+        var mediaType = format == "drawio" ? "application/xml" : "text/plain; charset=utf-8";
+        return Results.File(System.Text.Encoding.UTF8.GetBytes(text), mediaType, fileName);
+    }
 
     if (DrawIoDocumentParser.LooksLikeDrawIo(code))
     {
@@ -39,12 +47,37 @@ app.MapPost("/convert", async (HttpRequest request, MermaidPptxConverter convert
 
 app.Run();
 
-static string SanitizeFileName(string fileName)
+static string ConvertDiagramText(string code, string format)
 {
-    fileName = string.IsNullOrWhiteSpace(fileName) ? "mermaid-native.pptx" : fileName.Trim();
-    if (!fileName.EndsWith(".pptx", StringComparison.OrdinalIgnoreCase))
+    var isDrawIo = DrawIoDocumentParser.LooksLikeDrawIo(code);
+    if (format == "drawio")
     {
-        fileName += ".pptx";
+        return isDrawIo ? code : FlowchartInterop.MermaidToDrawIo(code);
+    }
+
+    return isDrawIo
+        ? FlowchartInterop.DrawIoToMermaid(code)
+        : MermaidFlowchartWriter.Write(new MermaidFlowchartParser().ParseAll(code));
+}
+
+static string SanitizeFileName(string fileName, string format)
+{
+    var extension = format switch
+    {
+        "drawio" => ".drawio",
+        "mermaid" => ".mmd",
+        _ => ".pptx"
+    };
+    var fallback = format switch
+    {
+        "drawio" => "diagram.drawio",
+        "mermaid" => "diagram.mmd",
+        _ => "mermaid-native.pptx"
+    };
+    fileName = string.IsNullOrWhiteSpace(fileName) ? fallback : fileName.Trim();
+    if (!fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+    {
+        fileName += extension;
     }
 
     foreach (var invalid in Path.GetInvalidFileNameChars())
@@ -131,7 +164,7 @@ static string IndexHtml() =>
       min-height: 76px;
       padding: 18px 20px;
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto;
       gap: 12px;
       align-items: end;
       border-bottom: 1px solid var(--line);
@@ -145,7 +178,7 @@ static string IndexHtml() =>
       font-weight: 600;
     }
 
-    input {
+    input, select {
       width: 100%;
       height: 38px;
       border: 1px solid var(--line);
@@ -260,8 +293,16 @@ static string IndexHtml() =>
       <form method="post" action="/convert" id="convertForm">
         <div class="bar">
           <label>
+            Format
+            <select name="format" id="format">
+              <option value="pptx">PPTX</option>
+              <option value="drawio">draw.io</option>
+              <option value="mermaid">Mermaid</option>
+            </select>
+          </label>
+          <label>
             Output
-            <input name="fileName" value="mermaid-native.pptx" autocomplete="off">
+            <input name="fileName" id="fileName" value="mermaid-native.pptx" autocomplete="off">
           </label>
           <button id="submitButton" type="submit">Download PPTX</button>
         </div>
@@ -272,7 +313,7 @@ static string IndexHtml() =>
   C --> E([Done])
   D --> E</textarea>
         <div class="footer">
-          <span>Mermaid SVG or draw.io XML → DrawingML</span>
+          <span>Mermaid ↔ draw.io ↔ native PPTX</span>
           <span class="ok">native shapes</span>
         </div>
       </form>
@@ -299,13 +340,27 @@ static string IndexHtml() =>
     const form = document.getElementById("convertForm");
     const submitButton = document.getElementById("submitButton");
     const status = document.getElementById("status");
+    const format = document.getElementById("format");
+    const fileName = document.getElementById("fileName");
+    const names = {
+      pptx: { file: "mermaid-native.pptx", button: "Download PPTX" },
+      drawio: { file: "diagram.drawio", button: "Download draw.io" },
+      mermaid: { file: "diagram.mmd", button: "Download Mermaid" }
+    };
     let renderTimer;
+
+    function syncFormat() {
+      const selected = names[format.value] || names.pptx;
+      fileName.value = selected.file;
+      submitButton.textContent = selected.button;
+    }
+    format.addEventListener("change", syncFormat);
 
     async function renderPreview() {
       const source = code.value;
       if (/<mxfile[\s>]|<mxGraphModel[\s>]/i.test(source)) {
         preview.removeAttribute("data-processed");
-        preview.textContent = "draw.io XML detected. Download PPTX to convert native DrawingML shapes.";
+        preview.textContent = "draw.io XML detected. Convert to PPTX or Mermaid from Format.";
         previewStatus.textContent = "draw.io";
         return;
       }

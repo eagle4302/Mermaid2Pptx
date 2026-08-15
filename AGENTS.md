@@ -36,6 +36,7 @@ XML into an editable PowerPoint deck made from native DrawingML shapes.
 The high-level flow is:
 
 ```text
+Mermaid flowchart <-> draw.io XML   (FlowchartInterop)
 Mermaid HTML or draw.io XML
   -> MermaidSvgExtractor or DrawIoDocumentParser
   -> SvgScene
@@ -55,7 +56,9 @@ Main entry points:
   parse draw.io `mxGraphModel` cells into `SvgScene`, then use the same mapper
   and DrawingML writer.
 - `Mermaid2Pptx.Web/Program.cs` posts Mermaid code or draw.io XML to the
-  converter and returns the PPTX download.
+  converter and returns PPTX, draw.io, or Mermaid output.
+- `FlowchartInterop` converts Mermaid `flowchart`/`graph` source to draw.io XML
+  and the reverse. Other Mermaid diagram families are not part of this interop.
 
 ## CLI Usage For Agents
 
@@ -70,6 +73,8 @@ dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid "graph TD
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.pptx
 Get-Content diagram.mmd -Raw | dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-stdin --out out/diagram.pptx
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --drawio-file samples/flowchart.drawio --out out/flowchart.pptx
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.drawio
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --drawio-file samples/flowchart.drawio --out out/flowchart.mmd
 ```
 
 Insert Mermaid-generated native shapes into an existing deck:
@@ -87,6 +92,8 @@ Source selection rules:
 - `--map` uses 1-based `target=source` slide pairs, for example `"5=1,6=2"`.
 - Mermaid code input creates one source slide in v1.
 - Draw.io input creates one source slide per `<diagram>` page.
+- `--to mermaid|drawio|pptx` or the `--out` extension selects interop vs PPTX.
+  Flowchart interop does not use Playwright.
 
 ### 1. SVG Extraction
 

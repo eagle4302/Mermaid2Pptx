@@ -35,6 +35,12 @@ public static class Program
                     return 2;
                 }
 
+                if (options.ResolveOutputFormat() != OutputFormat.Pptx)
+                {
+                    Console.Error.WriteLine("Insert mode can only write PPTX output.");
+                    return 2;
+                }
+
                 var sourceSelectionError = options.ValidateSourceSelection(insertMode: true);
                 if (sourceSelectionError is not null)
                 {
@@ -78,6 +84,21 @@ public static class Program
                 Console.Error.WriteLine(standaloneSourceSelectionError);
                 Console.Error.WriteLine(CliOptions.HelpText);
                 return 2;
+            }
+
+            var outputFormat = options.ResolveOutputFormat();
+            if (outputFormat != OutputFormat.Pptx)
+            {
+                if (!string.IsNullOrWhiteSpace(options.HtmlPath))
+                {
+                    Console.Error.WriteLine("HTML source can only convert to PPTX. Use a Mermaid or draw.io source for --to mermaid/drawio.");
+                    return 2;
+                }
+
+                var interopPath = await ConvertInteropAsync(options, outputFormat);
+                Console.WriteLine($"Wrote {interopPath}");
+                Console.WriteLine($"Format: {outputFormat.ToString().ToLowerInvariant()}");
+                return 0;
             }
 
             var result = await ConvertInputSourceToPptxAsync(options, converter, options.OutputPath);
@@ -177,6 +198,39 @@ public static class Program
         throw new InvalidOperationException("No Mermaid source was provided.");
     }
 
+    private static async Task<string> ConvertInteropAsync(CliOptions options, OutputFormat format)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(options.OutputPath)) ?? ".");
+        if (format == OutputFormat.DrawIo)
+        {
+            string xml;
+            if (options.IsDrawIoSource)
+            {
+                xml = await ReadDrawIoMarkupAsync(options);
+            }
+            else
+            {
+                xml = FlowchartInterop.MermaidToDrawIo(await ReadMermaidCodeAsync(options));
+            }
+
+            await File.WriteAllTextAsync(options.OutputPath, xml);
+            return Path.GetFullPath(options.OutputPath);
+        }
+
+        string mermaid;
+        if (options.IsDrawIoSource)
+        {
+            mermaid = FlowchartInterop.DrawIoToMermaid(await ReadDrawIoMarkupAsync(options));
+        }
+        else
+        {
+            mermaid = MermaidFlowchartWriter.Write(new MermaidFlowchartParser().ParseAll(await ReadMermaidCodeAsync(options)));
+        }
+
+        await File.WriteAllTextAsync(options.OutputPath, mermaid);
+        return Path.GetFullPath(options.OutputPath);
+    }
+
     private static void WriteConversionResult(ConversionResult result)
     {
         Console.WriteLine($"Wrote {result.OutputPath}");
@@ -215,6 +269,13 @@ public enum CliCommand
     Help
 }
 
+public enum OutputFormat
+{
+    Pptx,
+    DrawIo,
+    Mermaid
+}
+
 public sealed class CliOptions
 {
     public string HtmlPath { get; init; } = string.Empty;
@@ -232,6 +293,7 @@ public sealed class CliOptions
     public double HeightInches { get; init; } = 7.5;
     public bool ReadMermaidFromStdIn { get; init; }
     public bool ReadDrawIoFromStdIn { get; init; }
+    public string ToFormat { get; init; } = string.Empty;
     public CliCommand Command { get; init; } = CliCommand.Convert;
 
     public bool IsDrawIoSource =>
@@ -285,6 +347,30 @@ public sealed class CliOptions
         return null;
     }
 
+    public OutputFormat ResolveOutputFormat()
+    {
+        if (!string.IsNullOrWhiteSpace(ToFormat))
+        {
+            return ToFormat.Trim().ToLowerInvariant() switch
+            {
+                "pptx" or "powerpoint" => OutputFormat.Pptx,
+                "drawio" or "draw.io" or "dio" or "xml" => OutputFormat.DrawIo,
+                "mermaid" or "mmd" => OutputFormat.Mermaid,
+                _ => throw new InvalidOperationException($"Unknown --to format '{ToFormat}'. Use pptx, drawio, or mermaid.")
+            };
+        }
+
+        return Path.GetExtension(OutputPath).ToLowerInvariant() switch
+        {
+            ".drawio" or ".dio" => OutputFormat.DrawIo,
+            ".mmd" => OutputFormat.Mermaid,
+            ".xml" when IsDrawIoSource || !string.IsNullOrWhiteSpace(MermaidCode) ||
+                        !string.IsNullOrWhiteSpace(MermaidFilePath) || ReadMermaidFromStdIn
+                => OutputFormat.DrawIo,
+            _ => OutputFormat.Pptx
+        };
+    }
+
     public static string HelpText =>
         """
 Usage:
@@ -300,6 +386,9 @@ Usage:
   mermaid2pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx [options]
   mermaid2pptx --drawio-file diagram.drawio --insert-into base.pptx --map "5=1" --out final.pptx [options]
   mermaid2pptx --source-pptx diagrams.pptx --insert-into base.pptx --map "5=1,6=2" --out final.pptx
+  mermaid2pptx --mermaid-file diagram.mmd --out diagram.drawio
+  mermaid2pptx --drawio-file diagram.drawio --out diagram.mmd
+  mermaid2pptx --mermaid "flowchart LR; A-->B" --to drawio --out diagram.drawio
 
 Options:
   setup                       Install Playwright Chromium for deterministic rendering
@@ -310,6 +399,7 @@ Options:
   --drawio "<mxfile>..."      Inline draw.io / diagrams.net XML for native-shape conversion
   --drawio-file diagram.drawio File containing draw.io XML (.drawio, .xml)
   --drawio-stdin              Read draw.io XML from standard input
+  --to pptx|drawio|mermaid    Output format. Inferred from --out extension when omitted
   --slide-selector ".slide"   CSS selector for HTML slides. Default: .slide
   --svg-selector "svg"        CSS selector for rendered SVGs inside each slide. Default: svg
   --width 13.333              Slide width in inches. Default: 13.333
@@ -366,7 +456,8 @@ Options:
             WidthInches = DoubleValue(values, "width", 13.333),
             HeightInches = DoubleValue(values, "height", 7.5),
             ReadMermaidFromStdIn = BoolValue(values, "mermaid-stdin"),
-            ReadDrawIoFromStdIn = BoolValue(values, "drawio-stdin")
+            ReadDrawIoFromStdIn = BoolValue(values, "drawio-stdin"),
+            ToFormat = Value(values, "to")
         };
     }
 
