@@ -11,8 +11,8 @@
     <PackageId>Mermaid2Pptx.Tool</PackageId>
     <Version>0.1.0</Version>
     <Authors>Mermaid2Pptx Contributors</Authors>
-    <Description>Convert Mermaid diagrams into editable native-shape PowerPoint PPTX files.</Description>
-    <PackageTags>mermaid;powerpoint;pptx;drawingml;cli</PackageTags>
+    <Description>Convert Mermaid and draw.io diagrams into editable native-shape PowerPoint PPTX files.</Description>
+    <PackageTags>mermaid;drawio;diagrams.net;powerpoint;pptx;drawingml;cli</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

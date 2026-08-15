@@ -120,6 +120,63 @@ public sealed class CliOptionsTests
     }
 
     [Fact]
+    public void Parses_drawio_file_source()
+    {
+        var options = CliOptions.Parse(["--drawio-file", "diagram.drawio", "--out", "diagram.pptx"]);
+
+        Assert.Equal("diagram.drawio", options.DrawIoFilePath);
+        Assert.True(options.IsDrawIoSource);
+        Assert.Equal(1, options.ConversionSourceCount);
+        Assert.Null(options.ValidateSourceSelection(insertMode: false));
+    }
+
+    [Fact]
+    public void Parses_drawio_stdin_and_inline_sources()
+    {
+        var stdin = CliOptions.Parse(["--drawio-stdin", "--out", "diagram.pptx"]);
+        Assert.True(stdin.ReadDrawIoFromStdIn);
+        Assert.True(stdin.IsDrawIoSource);
+        Assert.Null(stdin.ValidateSourceSelection(insertMode: false));
+
+        var inline = CliOptions.Parse(["--drawio", "<mxfile/>", "--out", "diagram.pptx"]);
+        Assert.Equal("<mxfile/>", inline.DrawIoXml);
+        Assert.Null(inline.ValidateSourceSelection(insertMode: false));
+    }
+
+    [Fact]
+    public void Allows_drawio_input_in_insert_mode()
+    {
+        var options = CliOptions.Parse([
+            "--drawio-file",
+            "diagram.drawio",
+            "--insert-into",
+            "base.pptx",
+            "--map",
+            "5=1",
+            "--out",
+            "final.pptx"
+        ]);
+
+        Assert.Null(options.ValidateSourceSelection(insertMode: true));
+    }
+
+    [Fact]
+    public void Rejects_drawio_combined_with_mermaid_source()
+    {
+        var options = CliOptions.Parse([
+            "--drawio-file",
+            "diagram.drawio",
+            "--mermaid",
+            "graph TD; A-->B",
+            "--out",
+            "diagram.pptx"
+        ]);
+
+        Assert.Equal(2, options.ConversionSourceCount);
+        Assert.NotNull(options.ValidateSourceSelection(insertMode: false));
+    }
+
+    [Fact]
     public void Rejects_source_pptx_combined_with_conversion_source()
     {
         var options = CliOptions.Parse([

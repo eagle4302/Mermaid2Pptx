@@ -88,6 +88,7 @@ public sealed class SvgToPowerPointMapper
         {
             SvgRectElement rect => MapRect(rect, viewport, shapeId),
             SvgEllipseElement ellipse => MapEllipse(ellipse, viewport, shapeId),
+            SvgPresetShapeElement preset => MapPresetShape(preset, viewport, shapeId),
             SvgLineElement line => MapLine(line, viewport, shapeId),
             SvgPolylineElement polyline => MapPolyline(polyline, viewport, shapeId),
             SvgPathElement path => MapPath(path, viewport, shapeId),
@@ -154,6 +155,50 @@ public sealed class SvgToPowerPointMapper
             Style = ellipse.Style
         };
     }
+
+    private static PptxShape MapPresetShape(SvgPresetShapeElement preset, SvgViewportMap viewport, int shapeId)
+    {
+        var corners = new[]
+        {
+            preset.Transform.Transform(new SvgPoint(preset.X, preset.Y)),
+            preset.Transform.Transform(new SvgPoint(preset.X + preset.Width, preset.Y)),
+            preset.Transform.Transform(new SvgPoint(preset.X + preset.Width, preset.Y + preset.Height)),
+            preset.Transform.Transform(new SvgPoint(preset.X, preset.Y + preset.Height))
+        };
+        var mapped = corners.Select(viewport.Map).ToArray();
+        var bounds = Bounds(mapped);
+        var geometry = string.IsNullOrWhiteSpace(preset.PresetGeometry) ? "rect" : preset.PresetGeometry;
+
+        return new PptxShape
+        {
+            Id = shapeId,
+            Name = $"{PresetDisplayName(geometry)} {shapeId}",
+            Kind = PptxShapeKind.Preset,
+            PresetGeometry = geometry,
+            PresetAdjustValue = preset.PresetAdjustValue,
+            X = bounds.X,
+            Y = bounds.Y,
+            Cx = bounds.Cx,
+            Cy = bounds.Cy,
+            Style = preset.Style
+        };
+    }
+
+    private static string PresetDisplayName(string geometry) => geometry switch
+    {
+        "roundRect" => "Rounded Rect",
+        "ellipse" => "Ellipse",
+        "diamond" => "Diamond",
+        "parallelogram" => "Parallelogram",
+        "hexagon" => "Hexagon",
+        "triangle" => "Triangle",
+        "cloud" => "Cloud",
+        "can" => "Cylinder",
+        "chevron" => "Chevron",
+        _ when geometry.StartsWith("flowchart", StringComparison.OrdinalIgnoreCase) =>
+            "Flowchart " + geometry["flowchart".Length..],
+        _ => "Rect"
+    };
 
     private static PptxShape MapLine(SvgLineElement line, SvgViewportMap viewport, int shapeId)
     {

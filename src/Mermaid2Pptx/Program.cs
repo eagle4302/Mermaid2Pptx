@@ -119,12 +119,42 @@ public static class Program
                 options.HeightInches);
         }
 
+        if (options.IsDrawIoSource)
+        {
+            var drawIoXml = await ReadDrawIoMarkupAsync(options);
+            return converter.ConvertDrawIoXml(
+                drawIoXml,
+                outputPath,
+                options.WidthInches,
+                options.HeightInches);
+        }
+
         var mermaidCode = await ReadMermaidCodeAsync(options);
         return await converter.ConvertMermaidCodeAsync(
             mermaidCode,
             outputPath,
             options.WidthInches,
             options.HeightInches);
+    }
+
+    private static async Task<string> ReadDrawIoMarkupAsync(CliOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.DrawIoXml))
+        {
+            return options.DrawIoXml;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.DrawIoFilePath))
+        {
+            return await File.ReadAllTextAsync(options.DrawIoFilePath);
+        }
+
+        if (options.ReadDrawIoFromStdIn)
+        {
+            return await Console.In.ReadToEndAsync();
+        }
+
+        throw new InvalidOperationException("No draw.io source was provided.");
     }
 
     private static async Task<string> ReadMermaidCodeAsync(CliOptions options)
@@ -190,6 +220,8 @@ public sealed class CliOptions
     public string HtmlPath { get; init; } = string.Empty;
     public string MermaidCode { get; init; } = string.Empty;
     public string MermaidFilePath { get; init; } = string.Empty;
+    public string DrawIoXml { get; init; } = string.Empty;
+    public string DrawIoFilePath { get; init; } = string.Empty;
     public string OutputPath { get; init; } = string.Empty;
     public string InsertIntoPath { get; init; } = string.Empty;
     public string SourcePptxPath { get; init; } = string.Empty;
@@ -199,17 +231,27 @@ public sealed class CliOptions
     public double WidthInches { get; init; } = 13.333;
     public double HeightInches { get; init; } = 7.5;
     public bool ReadMermaidFromStdIn { get; init; }
+    public bool ReadDrawIoFromStdIn { get; init; }
     public CliCommand Command { get; init; } = CliCommand.Convert;
+
+    public bool IsDrawIoSource =>
+        !string.IsNullOrWhiteSpace(DrawIoXml) ||
+        !string.IsNullOrWhiteSpace(DrawIoFilePath) ||
+        ReadDrawIoFromStdIn;
 
     public int ConversionSourceCount =>
         CountSource(HtmlPath) +
         CountSource(MermaidCode) +
         CountSource(MermaidFilePath) +
-        (ReadMermaidFromStdIn ? 1 : 0);
+        CountSource(DrawIoXml) +
+        CountSource(DrawIoFilePath) +
+        (ReadMermaidFromStdIn ? 1 : 0) +
+        (ReadDrawIoFromStdIn ? 1 : 0);
 
     public string? ValidateSourceSelection(bool insertMode)
     {
         var hasSourcePptx = !string.IsNullOrWhiteSpace(SourcePptxPath);
+        var sourceList = "--html, --mermaid, --mermaid-file, --mermaid-stdin, --drawio, --drawio-file, or --drawio-stdin";
         if (!insertMode)
         {
             if (hasSourcePptx)
@@ -219,9 +261,9 @@ public sealed class CliOptions
 
             return ConversionSourceCount switch
             {
-                0 => "Missing required source argument. Use exactly one of --html, --mermaid, --mermaid-file, or --mermaid-stdin.",
+                0 => $"Missing required source argument. Use exactly one of {sourceList}.",
                 1 => null,
-                _ => "Use exactly one source argument: --html, --mermaid, --mermaid-file, or --mermaid-stdin."
+                _ => $"Use exactly one source argument: {sourceList}."
             };
         }
 
@@ -232,7 +274,7 @@ public sealed class CliOptions
 
         if (!hasSourcePptx && ConversionSourceCount == 0)
         {
-            return "Insert mode requires either --source-pptx or one of --html, --mermaid, --mermaid-file, or --mermaid-stdin.";
+            return $"Insert mode requires either --source-pptx or one of {sourceList}.";
         }
 
         if (ConversionSourceCount > 1)
@@ -251,8 +293,12 @@ Usage:
   mermaid2pptx --mermaid "graph TD; A-->B" --out diagram.pptx [options]
   mermaid2pptx --mermaid-file diagram.mmd --out diagram.pptx [options]
   Get-Content diagram.mmd -Raw | mermaid2pptx --mermaid-stdin --out diagram.pptx [options]
+  mermaid2pptx --drawio-file diagram.drawio --out diagram.pptx [options]
+  mermaid2pptx --drawio "<mxfile>...</mxfile>" --out diagram.pptx [options]
+  Get-Content diagram.drawio -Raw | mermaid2pptx --drawio-stdin --out diagram.pptx [options]
   mermaid2pptx --html diagrams.html --insert-into base.pptx --map "5=1,6=2" --out final.pptx [options]
   mermaid2pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --out final.pptx [options]
+  mermaid2pptx --drawio-file diagram.drawio --insert-into base.pptx --map "5=1" --out final.pptx [options]
   mermaid2pptx --source-pptx diagrams.pptx --insert-into base.pptx --map "5=1,6=2" --out final.pptx
 
 Options:
@@ -261,6 +307,9 @@ Options:
   --mermaid "graph TD; A-->B" Inline Mermaid code for a single-slide diagram deck
   --mermaid-file diagram.mmd  File containing Mermaid code for a single-slide diagram deck
   --mermaid-stdin             Read Mermaid code from standard input
+  --drawio "<mxfile>..."      Inline draw.io / diagrams.net XML for native-shape conversion
+  --drawio-file diagram.drawio File containing draw.io XML (.drawio, .xml)
+  --drawio-stdin              Read draw.io XML from standard input
   --slide-selector ".slide"   CSS selector for HTML slides. Default: .slide
   --svg-selector "svg"        CSS selector for rendered SVGs inside each slide. Default: svg
   --width 13.333              Slide width in inches. Default: 13.333
@@ -306,6 +355,8 @@ Options:
             HtmlPath = Value(values, "html"),
             MermaidCode = Value(values, "mermaid"),
             MermaidFilePath = Value(values, "mermaid-file"),
+            DrawIoXml = Value(values, "drawio"),
+            DrawIoFilePath = Value(values, "drawio-file"),
             OutputPath = Value(values, "out"),
             InsertIntoPath = Value(values, "insert-into"),
             SourcePptxPath = Value(values, "source-pptx"),
@@ -314,7 +365,8 @@ Options:
             SvgSelector = Value(values, "svg-selector", "svg"),
             WidthInches = DoubleValue(values, "width", 13.333),
             HeightInches = DoubleValue(values, "height", 7.5),
-            ReadMermaidFromStdIn = BoolValue(values, "mermaid-stdin")
+            ReadMermaidFromStdIn = BoolValue(values, "mermaid-stdin"),
+            ReadDrawIoFromStdIn = BoolValue(values, "drawio-stdin")
         };
     }
 

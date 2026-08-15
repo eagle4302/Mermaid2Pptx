@@ -18,6 +18,9 @@ param(
     [Parameter(Mandatory, ParameterSetName = "Html")]
     [string]$Html,
 
+    [Parameter(Mandatory, ParameterSetName = "DrawIoFile")]
+    [string]$DrawIoFile,
+
     [Parameter(Mandatory, ParameterSetName = "SourcePptx")]
     [string]$SourcePptx,
 
@@ -178,6 +181,11 @@ switch ($PSCmdlet.ParameterSetName) {
             -Path $Html `
             -Label "HTML file"
     }
+    "DrawIoFile" {
+        $sourcePath = Resolve-ExistingFile `
+            -Path $DrawIoFile `
+            -Label "Draw.io file"
+    }
     "SourcePptx" {
         $sourcePath = Resolve-ExistingFile `
             -Path $SourcePptx `
@@ -234,6 +242,9 @@ try {
                 "--slide-selector", $SlideSelector,
                 "--svg-selector", $SvgSelector
             )
+        }
+        "DrawIoFile" {
+            $converterArguments += @("--drawio-file", $sourcePath)
         }
         "SourcePptx" {
             $converterArguments += @("--source-pptx", $sourcePath)

@@ -61,8 +61,8 @@ the last successful operation.
    diagram is visually high-risk.
 
 Use `-SourcePptx` when a diagram source deck already exists. Use Mermaid,
-`.mmd`, stdin, or rendered HTML for fresh conversion. Never exchange raw
-DrawingML fragments.
+`.mmd`, stdin, rendered HTML, or draw.io XML for fresh conversion. Never
+exchange raw DrawingML fragments.
 
 ## References
 

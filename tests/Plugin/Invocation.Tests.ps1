@@ -12,6 +12,7 @@ $standalone = Join-Path $work "standalone.pptx"
 $fromFile = Join-Path $work "from-file.pptx"
 $fromStdin = Join-Path $work "from-stdin.pptx"
 $fromHtml = Join-Path $work "from-html.pptx"
+$fromDrawIo = Join-Path $work "from-drawio.pptx"
 $inserted = Join-Path $work "inserted.pptx"
 $fromSourcePptx = Join-Path $work "from-source-pptx.pptx"
 $badMap = Join-Path $work "bad-map.pptx"
@@ -37,6 +38,12 @@ try {
     Assert-True (Test-Path -LiteralPath $fromFile) "Mermaid file output"
     Assert-True (Test-Path -LiteralPath $fromStdin) "Mermaid stdin output"
     Assert-True (Test-Path -LiteralPath $fromHtml) "HTML output"
+
+    & $invoke `
+        -RepoRoot $repo `
+        -DrawIoFile (Join-Path $repo "samples/flowchart.drawio") `
+        -Out $fromDrawIo
+    Assert-True (Test-Path -LiteralPath $fromDrawIo) "draw.io file output"
 
     $baseHash = (Get-FileHash $standalone -Algorithm SHA256).Hash
     & $invoke `

@@ -34,9 +34,9 @@ mermaid2pptx setup
 ```
 
 The install and `setup` commands are one-time preparation. Afterward, use
-`mermaid2pptx --mermaid`, `--mermaid-file`, `--mermaid-stdin`, `--html`, or
-insert mode directly. The installed CLI needs .NET 8 but does not need
-PowerShell.
+`mermaid2pptx --mermaid`, `--mermaid-file`, `--mermaid-stdin`, `--html`,
+`--drawio-file`, `--drawio`, `--drawio-stdin`, or insert mode directly. The
+installed CLI needs .NET 8 but does not need PowerShell.
 
 ## New native-shape diagram deck
 
@@ -54,6 +54,7 @@ Alternative source modes:
 Get-Content ".\diagram.mmd" -Raw |
   & $invoke -MermaidStdin -Out ".\diagram.pptx"
 & $invoke -Html ".\rendered.html" -Out ".\diagram.pptx"
+& $invoke -DrawIoFile ".\diagram.drawio" -Out ".\diagram.pptx"
 ```
 
 Pass `-SlideSelector`, `-SvgSelector`, `-Width`, or `-Height` when the defaults

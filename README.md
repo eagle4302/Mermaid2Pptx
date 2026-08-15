@@ -1,6 +1,10 @@
 # Mermaid2Pptx
 
-MVP converter for Mermaid-rendered HTML SVG to editable PowerPoint DrawingML. The converter uses Playwright to read rendered SVG from an HTML file, parses SVG DOM with `System.Xml.Linq`, maps visible SVG primitives to native DrawingML shapes/text/custom geometry, and writes `.pptx` with Open XML SDK.
+MVP converter for Mermaid-rendered HTML SVG and draw.io / diagrams.net XML to
+editable PowerPoint DrawingML. Mermaid input uses Playwright to read rendered
+SVG from an HTML file. Draw.io input parses `mxGraphModel` cells directly. Both
+paths map visible primitives to native DrawingML shapes/text/custom geometry and
+write `.pptx` with Open XML SDK.
 
 It does not rasterize, screenshot, insert PNG/JPG, insert SVG as an image, use EMF, Inkscape, `python-pptx`, or PptxGenJS.
 
@@ -11,6 +15,7 @@ src/Mermaid2Pptx/
   Program.cs
   MermaidSvgExtractor.cs
   SvgDocumentParser.cs
+  DrawIoDocumentParser.cs
   SvgStyleResolver.cs
   SvgTransformResolver.cs
   SvgPathParser.cs
@@ -24,6 +29,7 @@ tests/Mermaid2Pptx.Tests/
 samples/
   sample.html
   all-diagrams.html
+  flowchart.drawio
 ```
 
 ## Repository Artifact Policy
@@ -63,6 +69,8 @@ mermaid2pptx --html samples/sample.html --out out/sample.pptx --slide-selector "
 mermaid2pptx --mermaid "graph TD; A-->B" --out out/inline-mermaid.pptx
 mermaid2pptx --mermaid-file diagram.mmd --out out/diagram.pptx
 Get-Content diagram.mmd -Raw | mermaid2pptx --mermaid-stdin --out out/diagram.pptx
+mermaid2pptx --drawio-file samples/flowchart.drawio --out out/flowchart.pptx
+Get-Content samples/flowchart.drawio -Raw | mermaid2pptx --drawio-stdin --out out/flowchart.pptx
 ```
 
 For AI agents, the recommended exchange format is still `.pptx`, not raw
@@ -74,8 +82,10 @@ mermaid2pptx --mermaid-file diagram.mmd --insert-into base.pptx --map "5=1" --ou
 ```
 
 CLI source inputs are mutually exclusive: use exactly one of `--html`,
-`--mermaid`, `--mermaid-file`, or `--mermaid-stdin`, unless insert mode uses an
-existing native-shape source deck via `--source-pptx`.
+`--mermaid`, `--mermaid-file`, `--mermaid-stdin`, `--drawio`, `--drawio-file`,
+or `--drawio-stdin`, unless insert mode uses an existing native-shape source
+deck via `--source-pptx`. Draw.io files may be uncompressed `mxfile` XML or
+compressed diagrams.net pages; each `<diagram>` page becomes one PPTX slide.
 
 Seven-diagram verification sample:
 
@@ -163,7 +173,7 @@ can also start the server manually:
 dotnet run --project src/Mermaid2Pptx.Web/Mermaid2Pptx.Web.csproj --urls http://127.0.0.1:5088
 ```
 
-Open `http://127.0.0.1:5088`, paste Mermaid code, and download the generated native-shape PPTX.
+Open `http://127.0.0.1:5088`, paste Mermaid code or draw.io XML, and download the generated native-shape PPTX.
 
 ## Visual QA
 

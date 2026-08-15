@@ -15,14 +15,21 @@ app.MapPost("/convert", async (HttpRequest request, MermaidPptxConverter convert
 
     if (string.IsNullOrWhiteSpace(code))
     {
-        return Results.BadRequest("Mermaid code is required.");
+        return Results.BadRequest("Mermaid or draw.io source is required.");
     }
 
     var outputDirectory = Path.Combine(app.Environment.ContentRootPath, "out");
     Directory.CreateDirectory(outputDirectory);
     var outputPath = Path.Combine(outputDirectory, fileName);
 
-    await converter.ConvertMermaidCodeAsync(code, outputPath, cancellationToken: cancellationToken);
+    if (DrawIoDocumentParser.LooksLikeDrawIo(code))
+    {
+        converter.ConvertDrawIoXml(code, outputPath);
+    }
+    else
+    {
+        await converter.ConvertMermaidCodeAsync(code, outputPath, cancellationToken: cancellationToken);
+    }
     var bytes = await File.ReadAllBytesAsync(outputPath, cancellationToken);
     return Results.File(
         bytes,
@@ -265,7 +272,7 @@ static string IndexHtml() =>
   C --> E([Done])
   D --> E</textarea>
         <div class="footer">
-          <span>SVG DOM → DrawingML</span>
+          <span>Mermaid SVG or draw.io XML → DrawingML</span>
           <span class="ok">native shapes</span>
         </div>
       </form>
@@ -295,9 +302,17 @@ static string IndexHtml() =>
     let renderTimer;
 
     async function renderPreview() {
+      const source = code.value;
+      if (/<mxfile[\s>]|<mxGraphModel[\s>]/i.test(source)) {
+        preview.removeAttribute("data-processed");
+        preview.textContent = "draw.io XML detected. Download PPTX to convert native DrawingML shapes.";
+        previewStatus.textContent = "draw.io";
+        return;
+      }
+
       previewStatus.textContent = "rendering";
       preview.removeAttribute("data-processed");
-      preview.textContent = code.value;
+      preview.textContent = source;
       try {
         await mermaid.run({ nodes: [preview] });
         previewStatus.textContent = "rendered";
