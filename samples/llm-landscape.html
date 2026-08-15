@@ -1,0 +1,481 @@
+<!--
+  2026 LLM landscape deck. Convert with:
+
+  mermaid2pptx --html samples/llm-landscape.html --out outputs/llm-landscape.pptx \
+    --slide-selector ".slide" --svg-selector "svg" --width 13.333 --height 7.5
+-->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>2026 大型語言模型導覽</title>
+  <style>
+    html, body {
+      margin: 0;
+      font-family: "Noto Sans CJK TC", "Noto Sans TC", "WenQuanYi Micro Hei", Arial, sans-serif;
+      background: #d7e3df;
+    }
+    body {
+      display: grid;
+      gap: 28px;
+      padding: 28px;
+    }
+    .slide {
+      position: relative;
+      width: 1600px;
+      height: 900px;
+      display: grid;
+      place-items: center;
+      background: #f6faf8;
+      overflow: hidden;
+    }
+    .mermaid {
+      width: 1480px;
+      max-height: 820px;
+      display: grid;
+      place-items: center;
+      color: #17302d;
+    }
+    .mermaid svg {
+      max-width: 1480px !important;
+      max-height: 820px !important;
+      font-family: "Noto Sans CJK TC", "Noto Sans TC", "WenQuanYi Micro Hei", Arial, sans-serif !important;
+    }
+    .wide { width: 1520px; }
+    .compact { width: 1320px; }
+  </style>
+</head>
+<body>
+  <section class="slide" data-diagram="cover">
+    <pre class="mermaid">
+---
+title: 2026 大型語言模型導覽
+---
+flowchart LR
+  Q["共同根基：Decoder-only Transformer"]
+  Q --> Closed
+  Q --> Open
+  subgraph Closed["閉源旗艦 API"]
+    GPT["OpenAI GPT-5.6"]
+    Claude["Anthropic Claude 5"]
+    Gemini["Google Gemini 3"]
+    Grok["xAI Grok 4.6"]
+  end
+  subgraph Open["開源與可自建"]
+    DS["DeepSeek V4"]
+    Qwen["Qwen 3"]
+    Llama["Llama 4"]
+    Mix["GLM / Kimi / Mistral"]
+  end
+  classDef root fill:#102825,stroke:#102825,color:#ffffff
+  classDef closed fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef open fill:#ddf2ef,stroke:#17877e,color:#17302d
+  class Q root
+  class GPT,Claude,Gemini,Grok closed
+  class DS,Qwen,Llama,Mix open
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="agenda">
+    <pre class="mermaid">
+---
+title: 這份簡報怎麼看
+---
+flowchart LR
+  A["1 什麼是 LLM"] --> B["2 核心架構"]
+  B --> C["3 訓練與推論"]
+  C --> D["4 2026 版圖"]
+  D --> E["5 怎麼選模型"]
+  classDef step fill:#ddf2ef,stroke:#17877e,color:#17302d
+  class A,B,C,D,E step
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="what-is-llm">
+    <pre class="mermaid">
+---
+title: 大型語言模型在做什麼
+---
+flowchart LR
+  In["文字 / 圖 / 檔案"] --> Tok["Tokenizer 切成 token"]
+  Tok --> Ctx["放進上下文視窗"]
+  Ctx --> Model["Transformer 預測下一個 token"]
+  Model --> Out["文字、程式或工具呼叫"]
+  Out --> Model
+  classDef input fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef process fill:#faf1dd,stroke:#d99025,color:#17302d
+  classDef model fill:#102825,stroke:#102825,color:#ffffff
+  classDef output fill:#ddf2ef,stroke:#17877e,color:#17302d
+  class In input
+  class Tok,Ctx process
+  class Model model
+  class Out output
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="timeline">
+    <pre class="mermaid">
+---
+title: 從論文到產品的節奏
+---
+flowchart LR
+  Y17["2017 Transformer"] --> Y18["2018 GPT-1 / BERT"]
+  Y18 --> Y20["2020 GPT-3 規模化"]
+  Y20 --> Y22["2022 ChatGPT"]
+  Y22 --> Y23["2023 GPT-4 / Llama 2"]
+  Y23 --> Y25["2025 推理模型與 Agent"]
+  Y25 --> Y26["2026 旗艦對決、開源近前線"]
+  classDef early fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef boom fill:#faf1dd,stroke:#d99025,color:#17302d
+  classDef now fill:#102825,stroke:#102825,color:#ffffff
+  class Y17,Y18,Y20 early
+  class Y22,Y23,Y25 boom
+  class Y26 now
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="transformer">
+    <pre class="mermaid">
+---
+title: Transformer 解碼器：現在主流 LLM 的骨架
+---
+flowchart TB
+  In["輸入 token 序列"] --> Emb["Token 嵌入 + 位置編碼"]
+  Emb --> Att["多頭自我注意力"]
+  Att --> N1["殘差連接 + LayerNorm"]
+  N1 --> Ffn["前饋網路 或 MoE 專家層"]
+  Ffn --> N2["殘差連接 + LayerNorm"]
+  N2 --> Stack["重複 N 層"]
+  Stack --> Head["線性層 + Softmax"]
+  Head --> Next["下一個 token 機率"]
+  classDef data fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef core fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef out fill:#faf1dd,stroke:#d99025,color:#17302d
+  class In,Emb,Next data
+  class Att,N1,Ffn,N2,Stack core
+  class Head out
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="decoder-only">
+    <pre class="mermaid">
+---
+title: 為什麼 Decoder-only 成為主流
+---
+flowchart TB
+  Goal["目標：接著寫下一個 token"] --> Why
+  subgraph Why["這件事需要的能力"]
+    C1["看到前面所有 token"]
+    C2["在同一套權重裡學世界知識"]
+    C3["生成時可以一直接龍"]
+  end
+  Why --> Stack["Decoder-only 堆疊"]
+  Stack --> Chat["對話、寫作、程式、工具呼叫"]
+  Enc["Encoder-Decoder 仍適合翻譯與語音"]
+  classDef goal fill:#102825,stroke:#102825,color:#ffffff
+  classDef need fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef main fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef note fill:#faf1dd,stroke:#d99025,color:#17302d
+  class Goal goal
+  class C1,C2,C3 need
+  class Stack,Chat main
+  class Enc note
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="training">
+    <pre class="mermaid">
+---
+title: 訓練三階段：先學會語言，再學會聽話
+---
+flowchart LR
+  P["1 Pretrain&lt;br/&gt;大量文字學統計規律"] --> S["2 SFT 指令微調&lt;br/&gt;示範讓模型聽指令"]
+  S --> R["3 RL 對齊 / 推理&lt;br/&gt;回饋讓它有用且安全"]
+  R --> Ship["可上線的模型"]
+  classDef stage fill:#102825,stroke:#102825,color:#ffffff
+  classDef done fill:#17877e,stroke:#17877e,color:#ffffff
+  class P,S,R stage
+  class Ship done
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="inference">
+    <pre class="mermaid">
+---
+title: 推論時不是一次答完，而是 token 接龍
+---
+flowchart TB
+  Prompt["使用者問題 + 系統提示"] --> Loop
+  subgraph Loop["生成迴圈"]
+    Think["選擇下一個 token"]
+    Think --> Append["接到上下文"]
+    Append --> Think
+  end
+  Loop --> Stop["遇到結束條件"]
+  Stop --> Answer["回覆文字"]
+  Stop --> Tool["或輸出工具呼叫"]
+  Tool --> Run["應用執行搜尋 / 程式 / API"]
+  Run --> Prompt
+  classDef in fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef loop fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef out fill:#faf1dd,stroke:#d99025,color:#17302d
+  class Prompt,Run in
+  class Think,Append,Stop loop
+  class Answer,Tool out
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="agent">
+    <pre class="mermaid compact">
+---
+title: Agent：模型負責想，工具負責做
+---
+sequenceDiagram
+  participant User as 使用者
+  participant App as 應用 / Agent
+  participant LLM as LLM
+  participant Tool as 工具
+  User->>App: 提出任務
+  App->>LLM: Prompt 與工具清單
+  LLM-->>App: 工具呼叫
+  App->>Tool: 執行搜尋或程式
+  Tool-->>App: 觀察結果
+  App->>LLM: 把結果加回上下文
+  LLM-->>App: 最終回答
+  App-->>User: 回覆
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="moe">
+    <pre class="mermaid">
+---
+title: Mixture of Experts：參數可以很大，每次只叫醒一部分
+---
+flowchart TB
+  Tok["目前 token"] --> Gate["路由器 選擇少數專家"]
+  Gate --> E1["Expert 1"]
+  Gate --> E2["Expert 2"]
+  Gate --> En["Expert N"]
+  E1 --> Mix["加權合併"]
+  E2 --> Mix
+  En --> Mix
+  Mix --> Out["這一層的輸出"]
+  Out -.-> Note["DeepSeek、Qwen、Kimi、Mixtral 用這招換接近旗艦的能力與較低成本"]
+  classDef in fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef route fill:#102825,stroke:#102825,color:#ffffff
+  classDef expert fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef note fill:#faf1dd,stroke:#d99025,color:#17302d
+  class Tok,Out in
+  class Gate,Mix route
+  class E1,E2,En expert
+  class Note note
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="landscape">
+    <pre class="mermaid wide">
+---
+title: 2026 年的兩條路：買旗艦 API，或拿開源權重
+---
+flowchart TB
+  subgraph Closed["閉源：能力、工具、產品整合"]
+    direction LR
+    GPT["GPT-5.6 代理與程式"]
+    Claude["Claude 5 審慎推理"]
+    Gemini["Gemini 3 多模態長上下文"]
+    Grok["Grok 4.6 即時與 Agent"]
+  end
+  subgraph Open["開源：成本、可控、可自建"]
+    direction LR
+    DS["DeepSeek V4 高性價比"]
+    Qwen["Qwen 3 多語與視覺"]
+    Llama["Llama 4 本地部署"]
+    Other["GLM / Kimi 長上下文"]
+  end
+  Closed --- Open
+  classDef closed fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef open fill:#ddf2ef,stroke:#17877e,color:#17302d
+  class GPT,Claude,Gemini,Grok closed
+  class DS,Qwen,Llama,Other open
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="closed-ladders">
+    <pre class="mermaid wide">
+---
+title: 閉源不是一顆模型，而是一條產品階梯
+---
+flowchart TB
+  subgraph xAI["xAI"]
+    GrokF["Grok 4.6 前線能力"]
+    GrokX["原生 X 檢索"]
+  end
+  subgraph Google["Google"]
+    GFlash["Gemini 3.7 Flash 速度與多模態"]
+    GPro["Gemini 3.1 Pro 超長文件與影片"]
+  end
+  subgraph Anthropic["Anthropic"]
+    Fable["Fable 5 名義旗艦"]
+    Opus["Opus 5 實務主力"]
+    Sonnet["Sonnet 5 工作馬"]
+  end
+  subgraph OpenAI["OpenAI"]
+    Sol["Sol 最難題"]
+    Terra["Terra 日常預設"]
+    Luna["Luna 大量便宜"]
+  end
+  classDef oa fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef an fill:#f3ece4,stroke:#8a6a4b,color:#17302d
+  classDef gg fill:#e8f3e4,stroke:#4d8b4a,color:#17302d
+  classDef xa fill:#f7e8ee,stroke:#9a4669,color:#17302d
+  class Sol,Terra,Luna oa
+  class Fable,Opus,Sonnet an
+  class GFlash,GPro gg
+  class GrokF,GrokX xa
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="open-models">
+    <pre class="mermaid">
+---
+title: 開源陣營把「接近前線」變成可下載的選項
+---
+flowchart LR
+  subgraph Cost["成本與控制"]
+    DS["DeepSeek V4 Pro / Flash"]
+  end
+  subgraph Multi["多語與多模態"]
+    Qwen["Qwen 3.8"]
+  end
+  subgraph Local["本地與生態"]
+    Llama["Llama 4"]
+    Mis["Mistral"]
+  end
+  subgraph Long["長上下文與推理"]
+    GLM["GLM-5"]
+    Kimi["Kimi K3"]
+  end
+  DS --> Qwen
+  Qwen --> Llama
+  Llama --> GLM
+  classDef cost fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef vis fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef loc fill:#faf1dd,stroke:#d99025,color:#17302d
+  classDef long fill:#e8f3e4,stroke:#4d8b4a,color:#17302d
+  class DS cost
+  class Qwen vis
+  class Llama,Mis loc
+  class GLM,Kimi long
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="choose">
+    <pre class="mermaid">
+---
+title: 沒有萬能冠軍，先問任務再選模型
+---
+flowchart TD
+  Q{"這次最在意什麼？"}
+  Q -->|"最難推理 / Agent / 寫程式"| Hard["GPT-5.6 Sol 或 Claude Opus 5"]
+  Q -->|"長文件、圖、音訊、影片"| Multi["Gemini 或 Qwen"]
+  Q -->|"即時網路與社群脈絡"| Live["Grok 4.6"]
+  Q -->|"成本、隱私、可自建"| Cheap["DeepSeek / Llama / GLM"]
+  Hard --> Mix["正式環境通常是模型棧，不是單一 logo"]
+  Multi --> Mix
+  Live --> Mix
+  Cheap --> Mix
+  classDef q fill:#102825,stroke:#102825,color:#ffffff
+  classDef hard fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef multi fill:#e8f3e4,stroke:#4d8b4a,color:#17302d
+  classDef live fill:#f7e8ee,stroke:#9a4669,color:#17302d
+  classDef cheap fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef mix fill:#faf1dd,stroke:#d99025,color:#17302d
+  class Q q
+  class Hard hard
+  class Multi multi
+  class Live live
+  class Cheap cheap
+  class Mix mix
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="stack">
+    <pre class="mermaid">
+---
+title: 實務模型棧：貴的少用，便宜的多用
+---
+flowchart TB
+  Plan["旗艦層 規劃、複核、高代價失敗"] --> Work["主力層 日常開發、寫作、分析"]
+  Work --> Bulk["量產層 分類、草稿、大量呼叫"]
+  Plan -.-> Pex["GPT-5.6 Sol / Claude Opus 5"]
+  Work -.-> Wex["GPT-5.6 Terra / Claude Sonnet 5 / Gemini Flash"]
+  Bulk -.-> Bex["Luna / Haiku / DeepSeek Flash / 本地 Llama"]
+  classDef layer fill:#102825,stroke:#102825,color:#ffffff
+  classDef ex fill:#ddf2ef,stroke:#17877e,color:#17302d
+  class Plan,Work,Bulk layer
+  class Pex,Wex,Bex ex
+    </pre>
+  </section>
+
+  <section class="slide" data-diagram="takeaways">
+    <pre class="mermaid">
+---
+title: 帶走四件事
+---
+flowchart TB
+  A["LLM 是 Transformer 接龍機 不是資料庫"] --> B["訓練分 Pretrain / SFT / RL 推論才是一次一次生成"]
+  B --> C["2026 沒有單一冠軍 閉源拼工具與極限，開源拼成本與控制"]
+  C --> D["先組模型棧 再為最難的那一步付旗艦的錢"]
+  classDef a fill:#e6f0fa,stroke:#2f73b7,color:#17302d
+  classDef b fill:#ddf2ef,stroke:#17877e,color:#17302d
+  classDef c fill:#faf1dd,stroke:#d99025,color:#17302d
+  classDef d fill:#102825,stroke:#102825,color:#ffffff
+  class A a
+  class B b
+  class C c
+  class D d
+    </pre>
+  </section>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "loose",
+      theme: "base",
+      themeVariables: {
+        fontFamily: "Noto Sans CJK TC, Noto Sans TC, WenQuanYi Micro Hei, Arial, sans-serif",
+        fontSize: "18px",
+        primaryColor: "#DDF2EF",
+        primaryTextColor: "#17302D",
+        primaryBorderColor: "#17877E",
+        lineColor: "#315B69",
+        secondaryColor: "#E6F0FA",
+        secondaryTextColor: "#17302D",
+        secondaryBorderColor: "#2F73B7",
+        tertiaryColor: "#FAF1DD",
+        tertiaryTextColor: "#17302D",
+        tertiaryBorderColor: "#D99025",
+        noteBkgColor: "#FAF1DD",
+        noteTextColor: "#17302D",
+        actorBkg: "#DDF2EF",
+        actorBorder: "#17877E",
+        actorTextColor: "#17302D",
+        activationBkgColor: "#E6F0FA",
+        activationBorderColor: "#2F73B7",
+        signalColor: "#315B69",
+        signalTextColor: "#17302D",
+        labelBoxBkgColor: "#FFFFFF",
+        labelBoxBorderColor: "#A9C8C2",
+        labelTextColor: "#17302D",
+        titleColor: "#102825"
+      },
+      flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: false, padding: 12 },
+      sequence: { mirrorActors: false, useMaxWidth: false, actorMargin: 48, messageMargin: 36 },
+      state: { useMaxWidth: false }
+    });
+    await mermaid.run({ querySelector: ".mermaid" });
+    window.__MERMAID_DONE__ = true;
+  </script>
+</body>
+</html>
