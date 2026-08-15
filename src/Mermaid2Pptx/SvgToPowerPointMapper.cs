@@ -195,8 +195,8 @@ public sealed class SvgToPowerPointMapper
         "cloud" => "Cloud",
         "can" => "Cylinder",
         "chevron" => "Chevron",
-        _ when geometry.StartsWith("flowchart", StringComparison.OrdinalIgnoreCase) =>
-            "Flowchart " + geometry["flowchart".Length..],
+        _ when geometry.StartsWith("flowChart", StringComparison.Ordinal) =>
+            "Flowchart " + geometry["flowChart".Length..],
         _ => "Rect"
     };
 

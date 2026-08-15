@@ -108,10 +108,16 @@ public sealed class DrawIoDocumentParser
             }
         }
 
-        scene.ViewBox = SceneBounds(scene);
-        scene.Width = scene.ViewBox.Width;
-        scene.Height = scene.ViewBox.Height;
-        return scene;
+        var viewBox = SceneBounds(scene);
+        var fitted = new SvgScene
+        {
+            Width = viewBox.Width,
+            Height = viewBox.Height,
+            ViewBox = viewBox
+        };
+        fitted.Elements.AddRange(scene.Elements);
+        fitted.Warnings.AddRange(scene.Warnings);
+        return fitted;
     }
 
     private static List<DrawIoCell> ReadCells(XElement model)
@@ -443,30 +449,30 @@ public sealed class DrawIoDocumentParser
             "rectangle" or "rect" or "process" => IsTrue(style, "rounded") ? "roundRect" : "rect",
             "ellipse" or "oval" or "connector" or "onpageconnector" or "on_page_connector" => "ellipse",
             "rhombus" or "diamond" => "diamond",
-            "decision" => "flowchartDecision",
+            "decision" => "flowChartDecision",
             "parallelogram" => "parallelogram",
-            "data" or "inputoutput" or "input_output" => "flowchartInputOutput",
+            "data" or "inputoutput" or "input_output" => "flowChartInputOutput",
             "hexagon" => "hexagon",
-            "preparation" => "flowchartPreparation",
+            "preparation" => "flowChartPreparation",
             "triangle" => "triangle",
-            "terminator" => "flowchartTerminator",
-            "document" => "flowchartDocument",
-            "multidocument" or "multi_document" => "flowchartMultidocument",
-            "predefinedprocess" or "predefined_process" => "flowchartPredefinedProcess",
-            "internalstorage" or "internal_storage" => "flowchartInternalStorage",
-            "manualinput" or "manual_input" => "flowchartManualInput",
-            "manualoperation" or "manual_operation" => "flowchartManualOperation",
-            "delay" => "flowchartDelay",
-            "display" => "flowchartDisplay",
-            "offpageconnector" or "off_page_connector" => "flowchartOffpageConnector",
-            "or" => "flowchartOr",
-            "summingjunction" or "summing_junction" => "flowchartSummingJunction",
-            "collate" => "flowchartCollate",
-            "sort" => "flowchartSort",
-            "merge" => "flowchartMerge",
-            "extract" => "flowchartExtract",
-            "storeddata" or "stored_data" or "onlinestorage" => "flowchartOnlineStorage",
-            "directdata" or "direct_data" or "disk" => "flowchartMagneticDisk",
+            "terminator" => "flowChartTerminator",
+            "document" => "flowChartDocument",
+            "multidocument" or "multi_document" => "flowChartMultidocument",
+            "predefinedprocess" or "predefined_process" => "flowChartPredefinedProcess",
+            "internalstorage" or "internal_storage" => "flowChartInternalStorage",
+            "manualinput" or "manual_input" => "flowChartManualInput",
+            "manualoperation" or "manual_operation" => "flowChartManualOperation",
+            "delay" => "flowChartDelay",
+            "display" => "flowChartDisplay",
+            "offpageconnector" or "off_page_connector" => "flowChartOffpageConnector",
+            "or" => "flowChartOr",
+            "summingjunction" or "summing_junction" => "flowChartSummingJunction",
+            "collate" => "flowChartCollate",
+            "sort" => "flowChartSort",
+            "merge" => "flowChartMerge",
+            "extract" => "flowChartExtract",
+            "storeddata" or "stored_data" or "onlinestorage" => "flowChartOnlineStorage",
+            "directdata" or "direct_data" or "disk" => "flowChartMagneticDisk",
             "card" => "foldedCorner",
             "cylinder" or "database" or "can" => "can",
             "cloud" => "cloud",
@@ -474,7 +480,7 @@ public sealed class DrawIoDocumentParser
             "cube" => "cube",
             "plus" => "plus",
             "roundedrectangle" or "rounded_rectangle" => "roundRect",
-            "alternateprocess" or "alternate_process" => "flowchartAlternateProcess",
+            "alternateprocess" or "alternate_process" => "flowChartAlternateProcess",
             "swimlane" => "rect",
             _ => null
         };
@@ -844,68 +850,73 @@ public sealed class DrawIoDocumentParser
 
     internal static string DecompressDiagram(string data)
     {
-        var trimmed = Regex.Replace(data, @"\s+", string.Empty);
+        var trimmed = Regex.Replace(data.Trim(), @"\s+", string.Empty);
         if (trimmed.StartsWith('<'))
         {
             return trimmed;
         }
 
-        var decodedUri = TryUnescape(trimmed);
-        if (decodedUri.StartsWith('<'))
+        if (trimmed.Contains('%', StringComparison.Ordinal))
         {
-            return decodedUri;
+            var unescaped = TryUnescape(trimmed);
+            if (unescaped.TrimStart().StartsWith('<'))
+            {
+                return unescaped;
+            }
+
+            trimmed = unescaped;
         }
 
-        var payload = decodedUri;
         byte[] bytes;
         try
         {
-            bytes = Convert.FromBase64String(payload);
+            bytes = Convert.FromBase64String(trimmed);
         }
         catch (FormatException)
         {
             throw new InvalidOperationException("Draw.io diagram compression is not valid Base64.");
         }
 
-        var inflated = InflateBytes(bytes);
-        var xml = inflated.TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
-        if (!xml.StartsWith('<'))
+        var inflated = InflateBytes(bytes).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+        if (!inflated.StartsWith('<'))
         {
-            xml = TryUnescape(xml);
+            inflated = TryUnescape(inflated);
         }
 
-        if (!xml.TrimStart().StartsWith('<'))
+        if (!inflated.TrimStart().StartsWith('<'))
         {
             throw new InvalidOperationException("Decompressed draw.io diagram is not XML.");
         }
 
-        return xml;
+        return inflated;
     }
 
     private static string InflateBytes(byte[] bytes)
     {
-        if (bytes.Length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b)
+        Exception? last = null;
+        foreach (var stream in DecompressAttempts(bytes))
         {
-            return ReadStream(new GZipStream(new MemoryStream(bytes), CompressionMode.Decompress));
-        }
-
-        if (bytes.Length >= 2 && bytes[0] == 0x78)
-        {
-            return ReadStream(new DeflateStream(new MemoryStream(bytes, 2, bytes.Length - 2), CompressionMode.Decompress));
-        }
-
-        try
-        {
-            return ReadStream(new DeflateStream(new MemoryStream(bytes), CompressionMode.Decompress));
-        }
-        catch (InvalidDataException)
-        {
-            if (bytes.Length > 2)
+            try
             {
-                return ReadStream(new DeflateStream(new MemoryStream(bytes, 2, bytes.Length - 2), CompressionMode.Decompress));
+                return ReadStream(stream);
             }
+            catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or IOException)
+            {
+                last = exception;
+            }
+        }
 
-            throw;
+        throw new InvalidOperationException("Could not decompress draw.io diagram payload.", last);
+    }
+
+    private static IEnumerable<Stream> DecompressAttempts(byte[] bytes)
+    {
+        yield return new ZLibStream(new MemoryStream(bytes), CompressionMode.Decompress);
+        yield return new DeflateStream(new MemoryStream(bytes), CompressionMode.Decompress);
+        yield return new GZipStream(new MemoryStream(bytes), CompressionMode.Decompress);
+        if (bytes.Length > 2)
+        {
+            yield return new DeflateStream(new MemoryStream(bytes, 2, bytes.Length - 2), CompressionMode.Decompress);
         }
     }
 
@@ -922,7 +933,7 @@ public sealed class DrawIoDocumentParser
     {
         try
         {
-            return Uri.UnescapeDataString(value.Replace("+", "%20", StringComparison.Ordinal));
+            return Uri.UnescapeDataString(value);
         }
         catch (UriFormatException)
         {
