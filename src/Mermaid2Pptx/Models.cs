@@ -199,6 +199,16 @@ public sealed class SvgTextElement : SvgElement
     public SvgRect? TextBox { get; init; }
 }
 
+public sealed class SvgPresetShapeElement : SvgElement
+{
+    public double X { get; init; }
+    public double Y { get; init; }
+    public double Width { get; init; }
+    public double Height { get; init; }
+    public required string PresetGeometry { get; init; }
+    public int? PresetAdjustValue { get; init; }
+}
+
 public sealed record SvgTextLine(double X, double Y, string Text);
 
 public abstract record SvgPathSegment;

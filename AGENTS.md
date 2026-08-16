@@ -1,8 +1,8 @@
 # AGENTS.md
 
 This file is for AI coding agents working on Mermaid2Pptx. Read it before
-changing code. The project goal is to convert rendered Mermaid SVG into an
-editable PowerPoint deck made from native DrawingML shapes.
+changing code. The project goal is to convert rendered Mermaid SVG and draw.io
+XML into an editable PowerPoint deck made from native DrawingML shapes.
 
 ## Core Invariants
 
@@ -21,11 +21,12 @@ editable PowerPoint deck made from native DrawingML shapes.
 
 - `src/Mermaid2Pptx/` contains the core CLI and conversion library.
 - `src/Mermaid2Pptx.Web/` contains the minimal Web UI that accepts Mermaid code
-  and downloads a generated native-shape PPTX.
+  or draw.io XML and downloads a generated native-shape PPTX.
 - `src/Mermaid2Pptx.Qa/` contains visual and XML QA tooling.
 - `tests/Mermaid2Pptx.Tests/` contains xUnit tests for native-shape conversion,
   DrawingML validity, style handling, marker behavior, and XML audit checks.
-- `samples/` contains rendered Mermaid HTML inputs used for manual and QA runs.
+- `samples/` contains rendered Mermaid HTML inputs and a draw.io flowchart used
+  for manual and QA runs.
 - `tools/SmartFactoryDeck/` is a separate deck-generation tool; do not change it
   while working on core conversion unless the request is specifically about that
   tool.
@@ -35,9 +36,10 @@ editable PowerPoint deck made from native DrawingML shapes.
 The high-level flow is:
 
 ```text
-HTML with rendered Mermaid
-  -> MermaidSvgExtractor
-  -> SvgDocumentParser
+Mermaid flowchart <-> draw.io XML   (FlowchartInterop)
+Mermaid HTML or draw.io XML
+  -> MermaidSvgExtractor or DrawIoDocumentParser
+  -> SvgScene
   -> SvgToPowerPointMapper
   -> DrawingMlWriter
   -> .pptx package with native DrawingML
@@ -50,20 +52,29 @@ Main entry points:
   PPTX pipeline.
 - `MermaidPptxConverter.ConvertMermaidCodeAsync(...)` builds a temporary HTML
   page that loads Mermaid from jsDelivr, then uses the same HTML pipeline.
-- `Mermaid2Pptx.Web/Program.cs` posts Mermaid code to the converter and returns
-  the PPTX download.
+- `MermaidPptxConverter.ConvertDrawIoXml(...)` / `ConvertDrawIoFileAsync(...)`
+  parse draw.io `mxGraphModel` cells into `SvgScene`, then use the same mapper
+  and DrawingML writer.
+- `Mermaid2Pptx.Web/Program.cs` posts Mermaid code or draw.io XML to the
+  converter and returns PPTX, draw.io, or Mermaid output.
+- `FlowchartInterop` converts Mermaid `flowchart`/`graph` source to draw.io XML
+  and the reverse. Other Mermaid diagram families are not part of this interop.
 
 ## CLI Usage For Agents
 
-AI agents should pass Mermaid source to the CLI and exchange `.pptx` files, not
-raw DrawingML fragments. Generated decks remain native DrawingML shape decks.
+AI agents should pass Mermaid or draw.io source to the CLI and exchange `.pptx`
+files, not raw DrawingML fragments. Generated decks remain native DrawingML
+shape decks.
 
-Standalone Mermaid input:
+Standalone diagram input:
 
 ```powershell
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid "graph TD; A-->B" --out out/diagram.pptx
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.pptx
 Get-Content diagram.mmd -Raw | dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-stdin --out out/diagram.pptx
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --drawio-file samples/flowchart.drawio --out out/flowchart.pptx
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diagram.mmd --out out/diagram.drawio
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --drawio-file samples/flowchart.drawio --out out/flowchart.mmd
 ```
 
 Insert Mermaid-generated native shapes into an existing deck:
@@ -75,10 +86,14 @@ dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --mermaid-file diag
 Source selection rules:
 
 - Standalone conversion accepts exactly one source: `--html`, `--mermaid`,
-  `--mermaid-file`, or `--mermaid-stdin`.
+  `--mermaid-file`, `--mermaid-stdin`, `--drawio`, `--drawio-file`, or
+  `--drawio-stdin`.
 - Insert mode accepts either `--source-pptx` or exactly one conversion source.
 - `--map` uses 1-based `target=source` slide pairs, for example `"5=1,6=2"`.
 - Mermaid code input creates one source slide in v1.
+- Draw.io input creates one source slide per `<diagram>` page.
+- `--to mermaid|drawio|pptx` or the `--out` extension selects interop vs PPTX.
+  Flowchart interop does not use Playwright.
 
 ### 1. SVG Extraction
 
@@ -94,6 +109,24 @@ Important details:
   diagram inside its original region on the slide.
 - If bundled Playwright Chromium is missing, the extractor falls back to local
   `msedge` and then `chrome`.
+
+### 1a. Draw.io Parsing
+
+`DrawIoDocumentParser` reads diagrams.net `mxfile` / `mxGraphModel` XML and
+builds `SvgScene` objects without Playwright.
+
+Important details:
+
+- Uncompressed pages and compressed (Base64 + deflate) `<diagram>` payloads are
+  both supported.
+- Each `<diagram>` page becomes one `SvgScene` / PPTX slide.
+- Vertices map to PowerPoint preset geometry when a match exists (`rect`,
+  `roundRect`, `ellipse`, `diamond`, flowchart stencils). Unknown stencils fall
+  back to a rectangle and add a warning.
+- Edges with two points become native connectors (`p:cxnSp`); routed edges with
+  waypoints become custom-geometry polylines.
+- Simple `endArrow` / `startArrow` values become native PowerPoint arrowheads.
+- HTML labels are flattened to plain text, including `<br>` line breaks.
 
 ### 2. SVG Parsing
 
@@ -196,6 +229,7 @@ Run the multi-diagram sample:
 
 ```powershell
 dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --html samples/all-diagrams.html --out out/all-diagrams.pptx --slide-selector ".slide" --svg-selector "svg"
+dotnet run --project src/Mermaid2Pptx/Mermaid2Pptx.csproj -- --drawio-file samples/flowchart.drawio --out out/flowchart.pptx
 ```
 
 Run visual and XML QA:
@@ -211,17 +245,18 @@ whether a mapping change is acceptable.
 
 ## How To Add Or Fix Conversion Support
 
-1. Start with a minimal SVG or Mermaid sample that reproduces the issue.
+1. Start with a minimal SVG, Mermaid, or draw.io sample that reproduces the issue.
 2. If an SVG primitive is missing, add or extend an `SvgElement` model in
    `Models.cs`.
-3. Parse the primitive in `SvgDocumentParser`, preserving style and transform.
+3. Parse the primitive in `SvgDocumentParser` or `DrawIoDocumentParser`,
+   preserving style and transform.
 4. If a new style property is needed, update `SvgStyle`, `SvgStyleResolver`, the
    mapper, and `DrawingMlWriter` together.
 5. If a new path or transform form is needed, update `SvgPathParser` or
    `SvgTransformResolver` and add focused tests.
 6. Map the parsed element in `SvgToPowerPointMapper`. Prefer preset PowerPoint
    geometry when it is semantically correct; use custom geometry for complex
-   paths.
+   paths. New draw.io stencils belong in `DrawIoDocumentParser.ResolvePreset`.
 7. Update `DrawingMlWriter` only when the existing PPTX model cannot express the
    needed DrawingML.
 8. Add or extend xUnit tests to assert native shape XML, no media parts, and any
@@ -240,6 +275,8 @@ The tests assert several non-negotiable behaviors:
 - Colors from scoped Mermaid CSS are preserved in DrawingML.
 - Dashed SVG lines become native dashed DrawingML lines.
 - SVG lines become native connectors (`p:cxnSp`).
+- Draw.io vertices become native preset shapes and two-point edges become
+  connectors.
 - Simple marker-end arrows are emitted as native PowerPoint arrowheads.
 - ER and class extension markers remain native marker shapes, not simple
   arrowheads.

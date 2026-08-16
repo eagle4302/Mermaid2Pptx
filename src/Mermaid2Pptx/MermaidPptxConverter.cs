@@ -72,6 +72,57 @@ public sealed class MermaidPptxConverter
         }
     }
 
+    public async Task<ConversionResult> ConvertDrawIoFileAsync(
+        string drawIoPath,
+        string outputPath,
+        double widthInches = 13.333,
+        double heightInches = 7.5,
+        CancellationToken cancellationToken = default)
+    {
+        var xml = await File.ReadAllTextAsync(drawIoPath, cancellationToken);
+        return ConvertDrawIoXml(xml, outputPath, widthInches, heightInches);
+    }
+
+    public ConversionResult ConvertDrawIoXml(
+        string drawIoXml,
+        string outputPath,
+        double widthInches = 13.333,
+        double heightInches = 7.5)
+    {
+        if (string.IsNullOrWhiteSpace(drawIoXml))
+        {
+            throw new ArgumentException("Draw.io markup is required.", nameof(drawIoXml));
+        }
+
+        var scenes = new DrawIoDocumentParser().Parse(drawIoXml);
+        if (scenes.Count == 0)
+        {
+            throw new InvalidOperationException("No draw.io diagram pages were found.");
+        }
+
+        var mapper = new SvgToPowerPointMapper();
+        var deck = new PptxDeckModel
+        {
+            WidthInches = widthInches,
+            HeightInches = heightInches
+        };
+
+        for (var index = 0; index < scenes.Count; index++)
+        {
+            var scene = scenes[index];
+            var slide = mapper.MapSvgToSlide(scene, widthInches, heightInches);
+            deck.Slides.Add(slide);
+            deck.Warnings.AddRange(slide.Warnings.Select(warning => $"slide {index + 1}: {warning}"));
+        }
+
+        new DrawingMlWriter().Write(deck, outputPath);
+        return new ConversionResult(
+            Path.GetFullPath(outputPath),
+            deck.Slides.Count,
+            deck.Slides.Sum(slide => slide.Shapes.Count),
+            deck.Warnings);
+    }
+
     private static string BuildSingleSlideHtml(string mermaidCode)
     {
         var escapedCode = System.Net.WebUtility.HtmlEncode(mermaidCode);

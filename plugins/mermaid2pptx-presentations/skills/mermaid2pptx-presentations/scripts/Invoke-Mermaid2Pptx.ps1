@@ -18,6 +18,9 @@ param(
     [Parameter(Mandatory, ParameterSetName = "Html")]
     [string]$Html,
 
+    [Parameter(Mandatory, ParameterSetName = "DrawIoFile")]
+    [string]$DrawIoFile,
+
     [Parameter(Mandatory, ParameterSetName = "SourcePptx")]
     [string]$SourcePptx,
 
@@ -31,6 +34,8 @@ param(
     [string]$SvgSelector = "svg",
     [double]$Width = 13.333,
     [double]$Height = 7.5,
+    [ValidateSet("pptx", "drawio", "mermaid")]
+    [string]$To,
     [switch]$SkipBrowserInstall,
     [switch]$Force
 )
@@ -121,9 +126,11 @@ function Get-PresentationSlideCount {
 }
 
 $outputPath = [IO.Path]::GetFullPath($Out)
-if (-not $outputPath.EndsWith(".pptx", [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Output path must end with .pptx: $outputPath"
+$extension = [IO.Path]::GetExtension($outputPath)
+if (@(".pptx", ".drawio", ".dio", ".mmd") -notcontains $extension.ToLowerInvariant()) {
+    throw "Output path must end with .pptx, .drawio, or .mmd: $outputPath"
 }
+$isPptx = $extension.Equals(".pptx", [StringComparison]::OrdinalIgnoreCase)
 if ((Test-Path -LiteralPath $outputPath) -and -not $Force) {
     throw "Output file already exists. Pass -Force to replace it: $outputPath"
 }
@@ -152,6 +159,9 @@ if (-not [string]::IsNullOrWhiteSpace($InsertInto)) {
 elseif (-not [string]::IsNullOrWhiteSpace($Map)) {
     throw "-Map can only be used with -InsertInto."
 }
+if ($null -ne $insertPath -and -not $isPptx) {
+    throw "Insert mode can only write PPTX output."
+}
 
 if ($PSCmdlet.ParameterSetName -eq "SourcePptx" -and
     [string]::IsNullOrWhiteSpace($InsertInto)) {
@@ -178,6 +188,11 @@ switch ($PSCmdlet.ParameterSetName) {
             -Path $Html `
             -Label "HTML file"
     }
+    "DrawIoFile" {
+        $sourcePath = Resolve-ExistingFile `
+            -Path $DrawIoFile `
+            -Label "Draw.io file"
+    }
     "SourcePptx" {
         $sourcePath = Resolve-ExistingFile `
             -Path $SourcePptx `
@@ -196,9 +211,10 @@ if (-not (Test-Path -LiteralPath $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory | Out-Null
 }
 
-$candidateName = ".{0}.{1}.tmp.pptx" -f @(
+$candidateName = ".{0}.{1}.tmp{2}" -f @(
     [IO.Path]::GetFileNameWithoutExtension($outputPath),
-    [guid]::NewGuid().ToString("N")
+    [guid]::NewGuid().ToString("N"),
+    $extension
 )
 $candidatePath = Join-Path $outputDirectory $candidateName
 $stdinPath = $null
@@ -235,6 +251,9 @@ try {
                 "--svg-selector", $SvgSelector
             )
         }
+        "DrawIoFile" {
+            $converterArguments += @("--drawio-file", $sourcePath)
+        }
         "SourcePptx" {
             $converterArguments += @("--source-pptx", $sourcePath)
         }
@@ -245,6 +264,9 @@ try {
             "--insert-into", $insertPath,
             "--map", $Map
         )
+    }
+    if (-not [string]::IsNullOrWhiteSpace($To)) {
+        $converterArguments += @("--to", $To)
     }
     $converterArguments += @(
         "--out", $candidatePath,
@@ -265,23 +287,25 @@ try {
         throw "Mermaid2Pptx conversion failed. $($commandOutput -join [Environment]::NewLine)"
     }
     if (-not (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
-        throw "Mermaid2Pptx reported success without writing the candidate PPTX."
+        throw "Mermaid2Pptx reported success without writing the candidate file."
     }
 
-    if ($null -eq $insertPath) {
-        $auditResults = @(
-            & $audit -Pptx $candidatePath -Standalone
-        )
+    if ($isPptx) {
+        if ($null -eq $insertPath) {
+            $auditResults = @(
+                & $audit -Pptx $candidatePath -Standalone
+            )
+        }
+        else {
+            $auditResults = @(
+                & $audit `
+                    -Pptx $candidatePath `
+                    -BaselinePptx $insertPath `
+                    -DiagramSlides $targetSlides
+            )
+        }
+        Write-Host "Validated Mermaid slides: $($auditResults.Count)"
     }
-    else {
-        $auditResults = @(
-            & $audit `
-                -Pptx $candidatePath `
-                -BaselinePptx $insertPath `
-                -DiagramSlides $targetSlides
-        )
-    }
-    Write-Host "Validated Mermaid slides: $($auditResults.Count)"
 
     & $publisher `
         -Candidate $candidatePath `
